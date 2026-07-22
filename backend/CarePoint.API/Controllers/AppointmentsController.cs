@@ -20,6 +20,7 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpGet]
+    [HttpGet("my-appointments")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<AppointmentDto>>>> GetAll()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -47,6 +48,7 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/status")]
+    [Authorize(Roles = "Doctor,Admin")]
     public async Task<ActionResult<ApiResponse<AppointmentDto>>> UpdateStatus(Guid id, [FromBody] UpdateAppointmentStatusDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -65,10 +67,11 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/cancel")]
-    public async Task<ActionResult<ApiResponse<AppointmentDto>>> Cancel(Guid id, [FromBody] string? reason)
+    public async Task<ActionResult<ApiResponse<AppointmentDto>>> Cancel(Guid id, [FromBody] CancelAppointmentDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var result = await _appointmentService.CancelAsync(id, userId, reason);
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+        var result = await _appointmentService.CancelAsync(id, userId, role, dto);
         return Ok(ApiResponse<AppointmentDto>.SuccessResponse(result));
     }
 }

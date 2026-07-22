@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using CarePoint.Application.Configuration;
 using CarePoint.API.Middleware;
+using CarePoint.API.Filters;
 using CarePoint.Application;
 using CarePoint.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,12 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // --- JWT Settings ---
-var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
+var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
+    ?? throw new InvalidOperationException("JwtSettings configuration is required.");
+if (string.IsNullOrWhiteSpace(jwtSettings.Secret) || jwtSettings.Secret.Length < 32)
+    throw new InvalidOperationException("JwtSettings:Secret must be configured with at least 32 characters.");
+if (string.IsNullOrWhiteSpace(jwtSettings.Issuer) || string.IsNullOrWhiteSpace(jwtSettings.Audience))
+    throw new InvalidOperationException("JwtSettings:Issuer and JwtSettings:Audience must be configured.");
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 
 // --- Authentication ---
@@ -58,7 +64,7 @@ builder.Services.AddCors(options =>
 });
 
 // --- Controllers & Swagger ---
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<FluentValidationFilter>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -91,7 +97,8 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<CarePoint.Infrastructure.Data.ApplicationDbContext>();
     await context.Database.MigrateAsync();
-    await CarePoint.Infrastructure.Data.DatabaseSeeder.SeedAsync(scope.ServiceProvider);
+    var seedDemoData = app.Environment.IsDevelopment() && builder.Configuration.GetValue("SeedDemoData", false);
+    await CarePoint.Infrastructure.Data.DatabaseSeeder.SeedAsync(scope.ServiceProvider, seedDemoData);
 }
 
 app.Run();

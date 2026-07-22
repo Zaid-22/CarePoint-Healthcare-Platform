@@ -31,12 +31,12 @@ public interface IAppointmentService
     Task<AppointmentDto> CreateAsync(string userId, CreateAppointmentDto dto);
     Task<AppointmentDto> UpdateStatusAsync(Guid id, string userId, string role, UpdateAppointmentStatusDto dto);
     Task<AppointmentDto> RescheduleAsync(Guid id, string userId, RescheduleAppointmentDto dto);
-    Task<AppointmentDto> CancelAsync(Guid id, string userId, string? reason);
+    Task<AppointmentDto> CancelAsync(Guid id, string userId, string role, CancelAppointmentDto dto);
 }
 
 public interface IPatientService
 {
-    Task<PatientDto> GetByIdAsync(Guid id);
+    Task<PatientDto> GetByIdAsync(Guid id, string userId, string role);
     Task<IReadOnlyList<PatientDto>> GetAllAsync();
     Task<PatientDto> GetByUserIdAsync(string userId);
     Task<PatientDto> UpdateProfileAsync(Guid id, string userId, UpdatePatientDto dto);

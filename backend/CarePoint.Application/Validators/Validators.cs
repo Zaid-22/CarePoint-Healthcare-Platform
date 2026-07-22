@@ -43,8 +43,19 @@ public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentDto
     public CreateAppointmentValidator()
     {
         RuleFor(x => x.DoctorProfileId).NotEmpty();
-        RuleFor(x => x.AppointmentDate).GreaterThan(DateTime.UtcNow.Date).WithMessage("Cannot book appointments in the past.");
+        RuleFor(x => x.AppointmentDate).GreaterThanOrEqualTo(DateTime.UtcNow.Date).WithMessage("Cannot book appointments in the past.");
         RuleFor(x => x.StartTime).LessThan(x => x.EndTime).WithMessage("Start time must be before end time.");
+    }
+}
+
+public class RescheduleAppointmentValidator : AbstractValidator<RescheduleAppointmentDto>
+{
+    public RescheduleAppointmentValidator()
+    {
+        RuleFor(x => x.NewAppointmentDate).GreaterThanOrEqualTo(DateTime.UtcNow.Date)
+            .WithMessage("Cannot reschedule appointments into the past.");
+        RuleFor(x => x.NewStartTime).LessThan(x => x.NewEndTime)
+            .WithMessage("Start time must be before end time.");
     }
 }
 
@@ -72,6 +83,16 @@ public class CreateMedicalRecordValidator : AbstractValidator<CreateMedicalRecor
     {
         RuleFor(x => x.AppointmentId).NotEmpty();
         RuleFor(x => x.Diagnosis).NotEmpty().MaximumLength(2000);
+    }
+}
+
+public class UpdateMedicalRecordValidator : AbstractValidator<UpdateMedicalRecordDto>
+{
+    public UpdateMedicalRecordValidator()
+    {
+        RuleFor(x => x.Diagnosis).NotEmpty().MaximumLength(2000);
+        RuleFor(x => x.Notes).MaximumLength(4000);
+        RuleFor(x => x.Treatment).MaximumLength(4000);
     }
 }
 

@@ -27,18 +27,23 @@ public class MedicalRecordService : IMedicalRecordService
             .Include(r => r.Appointment).ThenInclude(a => a.PatientProfile)
             .FirstOrDefaultAsync(r => r.Id == id)
             ?? throw new NotFoundException("Medical Record", id);
-        return MapToDto(record);
+        await EnsureCanReadAsync(record, userId, role);
+        return await MapToDtoAsync(record);
     }
 
     public async Task<IReadOnlyList<MedicalRecordDto>> GetByPatientIdAsync(Guid patientId, string userId, string role)
     {
+        await EnsureCanReadPatientHistoryAsync(patientId, userId, role);
         var records = await _context.MedicalRecords
             .Include(r => r.Appointment).ThenInclude(a => a.DoctorProfile)
             .Include(r => r.Appointment).ThenInclude(a => a.PatientProfile)
             .Where(r => r.Appointment.PatientProfileId == patientId)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
-        return records.Select(MapToDto).ToList();
+        var result = new List<MedicalRecordDto>();
+        foreach (var record in records)
+            result.Add(await MapToDtoAsync(record));
+        return result;
     }
 
     public async Task<IReadOnlyList<MedicalRecordDto>> GetMyHistoryAsync(string userId)
@@ -52,6 +57,15 @@ public class MedicalRecordService : IMedicalRecordService
     {
         var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
             ?? throw new ForbiddenException("Only doctors can create medical records.");
+
+        var appointment = await _context.Appointments.FindAsync(dto.AppointmentId)
+            ?? throw new NotFoundException("Appointment", dto.AppointmentId);
+        if (appointment.DoctorProfileId != doctor.Id)
+            throw new ForbiddenException("You can only create records for your own appointments.");
+        if (appointment.Status is not (Domain.Enums.AppointmentStatus.Accepted or Domain.Enums.AppointmentStatus.InProgress or Domain.Enums.AppointmentStatus.Completed))
+            throw new BadRequestException("A medical record can only be created for an accepted or completed appointment.");
+        if (await _context.MedicalRecords.AnyAsync(r => r.AppointmentId == dto.AppointmentId))
+            throw new ConflictException("A medical record already exists for this appointment.");
 
         var record = new MedicalRecord
         {
@@ -68,8 +82,15 @@ public class MedicalRecordService : IMedicalRecordService
 
     public async Task<MedicalRecordDto> UpdateAsync(Guid id, string userId, UpdateMedicalRecordDto dto)
     {
-        var record = await _context.MedicalRecords.FindAsync(id)
+        var record = await _context.MedicalRecords
+            .Include(r => r.Appointment)
+            .FirstOrDefaultAsync(r => r.Id == id)
             ?? throw new NotFoundException("Medical Record", id);
+
+        var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
+            ?? throw new ForbiddenException("Only doctors can update medical records.");
+        if (record.Appointment.DoctorProfileId != doctor.Id)
+            throw new ForbiddenException("You can only update records for your own appointments.");
 
         record.Diagnosis = dto.Diagnosis;
         record.Treatment = dto.Treatment;
@@ -78,13 +99,49 @@ public class MedicalRecordService : IMedicalRecordService
         return await GetByIdAsync(record.Id, userId, "Doctor");
     }
 
-    private MedicalRecordDto MapToDto(MedicalRecord r)
+    private async Task EnsureCanReadAsync(MedicalRecord record, string userId, string role)
+    {
+        if (role == "Admin") return;
+
+        if (role == "Patient" && record.Appointment.PatientProfile.UserId == userId) return;
+
+        if (role == "Doctor")
+        {
+            var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
+            if (doctor != null && await _context.Appointments.AnyAsync(a =>
+                    a.DoctorProfileId == doctor.Id &&
+                    a.PatientProfileId == record.Appointment.PatientProfileId))
+                return;
+        }
+
+        throw new ForbiddenException();
+    }
+
+    private async Task EnsureCanReadPatientHistoryAsync(Guid patientId, string userId, string role)
+    {
+        var patient = await _context.PatientProfiles.FindAsync(patientId)
+            ?? throw new NotFoundException("Patient", patientId);
+
+        if (role == "Admin" || (role == "Patient" && patient.UserId == userId)) return;
+
+        if (role == "Doctor")
+        {
+            var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
+            if (doctor != null && await _context.Appointments.AnyAsync(a =>
+                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == patientId))
+                return;
+        }
+
+        throw new ForbiddenException();
+    }
+
+    private async Task<MedicalRecordDto> MapToDtoAsync(MedicalRecord r)
     {
         var doctorUser = r.Appointment?.DoctorProfile != null
-            ? _userManager.FindByIdAsync(r.Appointment.DoctorProfile.UserId).Result
+            ? await _userManager.FindByIdAsync(r.Appointment.DoctorProfile.UserId)
             : null;
         var patientUser = r.Appointment?.PatientProfile != null
-            ? _userManager.FindByIdAsync(r.Appointment.PatientProfile.UserId).Result
+            ? await _userManager.FindByIdAsync(r.Appointment.PatientProfile.UserId)
             : null;
 
         return new MedicalRecordDto

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/CarePoint.API/CarePoint.API.csproj" />
+    <Project Path="backend/CarePoint.Application/CarePoint.Application.csproj" />
+    <Project Path="backend/CarePoint.Domain/CarePoint.Domain.csproj" />
+    <Project Path="backend/CarePoint.Infrastructure/CarePoint.Infrastructure.csproj" />
+  </Folder>
+</Solution>

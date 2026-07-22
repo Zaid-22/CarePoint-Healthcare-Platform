@@ -20,10 +20,21 @@ public class PatientService : IPatientService
         _userManager = userManager;
     }
 
-    public async Task<PatientDto> GetByIdAsync(Guid id)
+    public async Task<PatientDto> GetByIdAsync(Guid id, string userId, string role)
     {
         var patient = await _context.PatientProfiles.FindAsync(id)
             ?? throw new NotFoundException("Patient", id);
+
+        if (role != "Admin" && patient.UserId != userId)
+        {
+            var doctor = role == "Doctor"
+                ? await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
+                : null;
+            if (doctor == null || !await _context.Appointments.AnyAsync(a =>
+                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == patient.Id))
+                throw new ForbiddenException();
+        }
+
         var user = await _userManager.FindByIdAsync(patient.UserId)
             ?? throw new NotFoundException("User", patient.UserId);
         return MapToDto(patient, user);

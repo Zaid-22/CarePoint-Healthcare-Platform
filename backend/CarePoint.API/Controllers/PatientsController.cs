@@ -19,7 +19,7 @@ public class PatientsController : ControllerBase
         _patientService = patientService;
     }
 
-    [Authorize(Roles = "Admin,Doctor")]
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PatientDto>>>> GetAll()
     {
@@ -30,7 +30,9 @@ public class PatientsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PatientDto>>> GetById(Guid id)
     {
-        var result = await _patientService.GetByIdAsync(id);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+        var result = await _patientService.GetByIdAsync(id, userId, role);
         return Ok(ApiResponse<PatientDto>.SuccessResponse(result));
     }
 

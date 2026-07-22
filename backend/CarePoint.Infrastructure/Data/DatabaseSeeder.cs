@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
 using CarePoint.Infrastructure.Identity;
@@ -12,7 +13,7 @@ namespace CarePoint.Infrastructure.Data;
 /// </summary>
 public static class DatabaseSeeder
 {
-    public static async Task SeedAsync(IServiceProvider serviceProvider)
+    public static async Task SeedAsync(IServiceProvider serviceProvider, bool seedDemoData)
     {
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -28,6 +29,19 @@ public static class DatabaseSeeder
             }
         }
 
+        // Reference data is safe to seed in every environment.
+        var seededSpecialties = await SeedSpecialtiesAsync(dbContext);
+        var seededClinics = await SeedClinicsAsync(dbContext);
+
+        // Demo users are opt-in and restricted to development. Their password is never stored in source control.
+        if (!seedDemoData)
+            return;
+
+        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        var demoPassword = configuration["DemoSeedPassword"];
+        if (string.IsNullOrWhiteSpace(demoPassword))
+            throw new InvalidOperationException("DemoSeedPassword must be configured when SeedDemoData is enabled.");
+
         // 2. Seed default admin
         const string adminEmail = "admin@carepoint.com";
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
@@ -42,24 +56,18 @@ public static class DatabaseSeeder
                 EmailConfirmed = true
             };
 
-            var result = await userManager.CreateAsync(adminUser, "Admin@123!");
+            var result = await userManager.CreateAsync(adminUser, demoPassword);
             if (result.Succeeded)
             {
                 await userManager.AddToRoleAsync(adminUser, "Admin");
             }
         }
 
-        // 3. Seed Clinical Specialties
-        var seededSpecialties = await SeedSpecialtiesAsync(dbContext);
-
-        // 4. Seed Clinics
-        var seededClinics = await SeedClinicsAsync(dbContext);
-
         // 5. Seed Sample Doctors with Specialties and Availability
-        await SeedDoctorsAsync(userManager, dbContext, seededSpecialties, seededClinics);
+        await SeedDoctorsAsync(userManager, dbContext, seededSpecialties, seededClinics, demoPassword);
 
         // 6. Seed Sample Patient
-        await SeedPatientAsync(userManager, dbContext);
+        await SeedPatientAsync(userManager, dbContext, demoPassword);
     }
 
     public static async Task<Dictionary<string, Specialty>> SeedSpecialtiesAsync(ApplicationDbContext context)
@@ -156,7 +164,8 @@ public static class DatabaseSeeder
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext context,
         Dictionary<string, Specialty> specialtyMap,
-        List<Clinic> clinics)
+        List<Clinic> clinics,
+        string demoPassword)
     {
         var sampleDoctors = new[]
         {
@@ -241,7 +250,7 @@ public static class DatabaseSeeder
                     EmailConfirmed = true
                 };
 
-                var createRes = await userManager.CreateAsync(user, "Doctor@123!");
+                var createRes = await userManager.CreateAsync(user, demoPassword);
                 if (createRes.Succeeded)
                 {
                     await userManager.AddToRoleAsync(user, "Doctor");
@@ -310,7 +319,7 @@ public static class DatabaseSeeder
         }
     }
 
-    private static async Task SeedPatientAsync(UserManager<ApplicationUser> userManager, ApplicationDbContext context)
+    private static async Task SeedPatientAsync(UserManager<ApplicationUser> userManager, ApplicationDbContext context, string demoPassword)
     {
         const string patientEmail = "patient@carepoint.com";
         var patientUser = await userManager.FindByEmailAsync(patientEmail);
@@ -325,7 +334,7 @@ public static class DatabaseSeeder
                 EmailConfirmed = true
             };
 
-            var createRes = await userManager.CreateAsync(patientUser, "Patient@123!");
+            var createRes = await userManager.CreateAsync(patientUser, demoPassword);
             if (createRes.Succeeded)
             {
                 await userManager.AddToRoleAsync(patientUser, "Patient");

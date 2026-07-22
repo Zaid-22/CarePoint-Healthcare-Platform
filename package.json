@@ -1,0 +1,12 @@
+{
+  "name": "carepoint-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "./run.sh",
+    "dev:backend": "dotnet run --project backend/CarePoint.API/CarePoint.API.csproj",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  }
+}

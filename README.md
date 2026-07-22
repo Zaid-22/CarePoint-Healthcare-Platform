@@ -31,36 +31,57 @@ CarePoint is a modern, enterprise-grade healthcare management and specialist app
 | :--- | :--- |
 | **Frontend** | React 18, TypeScript, Vite, Redux Toolkit, Vanilla CSS Design System |
 | **Backend** | ASP.NET Core 10.0 Web API, Clean Architecture |
-| **Database & ORM** | Entity Framework Core, SQLite Database |
+| **Database & ORM** | Entity Framework Core, SQL Server |
 | **Authentication** | ASP.NET Core Identity, JWT Bearer Tokens, Role-Based Access Control (`Admin`, `Doctor`, `Patient`) |
 | **Design Aesthetics** | Modern Glassmorphism, HSL color tokens, custom SVG icons, responsive flexbox/grid |
 
 ---
 
-## Default Credentials (Seeded Demo Accounts)
+## Seeded Demo Accounts
 
-When running the application for the first time, the database is automatically seeded with default credentials:
+Demo accounts are disabled by default. For a disposable local environment, set `SEED_DEMO_DATA=true` and provide `DEMO_SEED_PASSWORD` in `.env`. They are never seeded outside Development.
 
-| Role | Email | Password | Access Rights |
-| :--- | :--- | :--- | :--- |
-| **Administrator** | `admin@carepoint.com` | `Admin@123!` | Full System & Doctor Approvals |
-| **Doctor** | `dr.smith@carepoint.com` | `Doctor@123!` | Practitioner Schedule & Profile |
-| **Patient** | `patient@carepoint.com` | `Patient@123!` | Find Doctors & Book Appointments |
+| Role | Email | Access Rights |
+| :--- | :--- | :--- |
+| **Administrator** | `admin@carepoint.com` | Full System & Doctor Approvals |
+| **Doctor** | `dr.smith@carepoint.com` | Practitioner Schedule & Profile |
+| **Patient** | `patient@carepoint.com` | Find Doctors & Book Appointments |
 
 ---
 
 ## Getting Started & Local Setup
 
 ### Prerequisites
-- **.NET 10.0 SDK** (or .NET 9.0+)
+- **.NET 10.0 SDK**
 - **Node.js** (v18+) & **npm**
+- Docker Desktop (for SQL Server)
+
+### Configure local secrets
+
+Copy the example configuration and replace both placeholders with strong, local-only values. The `.env` file is ignored by Git.
+
+```bash
+cp .env.example .env
+```
+
+### Run the complete development stack
+
+```bash
+./run.sh
+```
+
+This starts SQL Server, the API on `http://127.0.0.1:5005`, and the frontend on `http://localhost:5173`.
 
 ### 1. Run Backend Web API
 ```bash
+cp .env.example .env
+source .env
+export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=CarePointDb;User Id=sa;Password=$MSSQL_SA_PASSWORD;TrustServerCertificate=True;"
+export JwtSettings__Secret="$JWT_SECRET"
 cd backend/CarePoint.API
-dotnet run
+dotnet run --launch-profile http
 ```
-The API server will launch locally at `https://localhost:7081` (or `http://localhost:5081`).
+The API server launches at `http://127.0.0.1:5005`.
 
 ### 2. Run Frontend Web Application
 ```bash
@@ -69,6 +90,14 @@ npm install
 npm run dev
 ```
 Open your browser at `http://localhost:5173`.
+
+### Docker
+
+After configuring `.env`, start all three containers with:
+
+```bash
+docker compose up --build
+```
 
 ---
 

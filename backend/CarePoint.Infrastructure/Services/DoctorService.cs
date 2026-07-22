@@ -281,6 +281,9 @@ public class DoctorService : IDoctorService
         if (doctor.UserId != userId)
             throw new ForbiddenException();
 
+        ValidateAvailability(dto);
+        await EnsureAvailabilityDoesNotOverlapAsync(doctorId, dto);
+
         var availability = new DoctorAvailability
         {
             DoctorProfileId = doctorId,
@@ -312,6 +315,11 @@ public class DoctorService : IDoctorService
 
         var slot = await _context.DoctorAvailabilities.FindAsync(slotId)
             ?? throw new NotFoundException("Availability", slotId);
+        if (slot.DoctorProfileId != doctorId)
+            throw new ForbiddenException();
+
+        ValidateAvailability(dto);
+        await EnsureAvailabilityDoesNotOverlapAsync(doctorId, dto, slotId);
 
         slot.DayOfWeek = dto.DayOfWeek;
         slot.StartTime = dto.StartTime;
@@ -336,6 +344,8 @@ public class DoctorService : IDoctorService
 
         var slot = await _context.DoctorAvailabilities.FindAsync(slotId)
             ?? throw new NotFoundException("Availability", slotId);
+        if (slot.DoctorProfileId != doctorId)
+            throw new ForbiddenException();
 
         _context.DoctorAvailabilities.Remove(slot);
         await _context.SaveChangesAsync();
@@ -378,6 +388,27 @@ public class DoctorService : IDoctorService
         }
 
         return slots;
+    }
+
+    private static void ValidateAvailability(CreateAvailabilityDto dto)
+    {
+        if (dto.StartTime >= dto.EndTime)
+            throw new BadRequestException("Start time must be before end time.");
+        if (dto.SlotDurationMinutes is < 10 or > 120)
+            throw new BadRequestException("Slot duration must be between 10 and 120 minutes.");
+    }
+
+    private async Task EnsureAvailabilityDoesNotOverlapAsync(
+        Guid doctorId, CreateAvailabilityDto dto, Guid? excludedSlotId = null)
+    {
+        var overlaps = await _context.DoctorAvailabilities.AnyAsync(slot =>
+            slot.DoctorProfileId == doctorId &&
+            slot.DayOfWeek == dto.DayOfWeek &&
+            (!excludedSlotId.HasValue || slot.Id != excludedSlotId.Value) &&
+            slot.StartTime < dto.EndTime && slot.EndTime > dto.StartTime);
+
+        if (overlaps)
+            throw new ConflictException("Availability periods on the same day cannot overlap.");
     }
 
     private static DoctorDto MapToDto(DoctorProfile doctor, ApplicationUser user) => new()

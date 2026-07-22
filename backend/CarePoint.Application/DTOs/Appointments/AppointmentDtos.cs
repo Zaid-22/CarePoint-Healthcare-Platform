@@ -39,3 +39,8 @@ public class RescheduleAppointmentDto
     public TimeOnly NewStartTime { get; set; }
     public TimeOnly NewEndTime { get; set; }
 }
+
+public class CancelAppointmentDto
+{
+    public string? CancellationReason { get; set; }
+}

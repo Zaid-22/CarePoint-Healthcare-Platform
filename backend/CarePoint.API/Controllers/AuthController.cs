@@ -55,7 +55,8 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<ActionResult<ApiResponse<string>>> Logout([FromBody] RefreshTokenRequestDto dto)
     {
-        await _authService.LogoutAsync(dto.RefreshToken);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        await _authService.LogoutAsync(userId, dto.RefreshToken);
         return Ok(ApiResponse<string>.SuccessResponse("Logged out successfully."));
     }
 

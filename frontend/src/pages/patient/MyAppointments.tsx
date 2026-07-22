@@ -40,15 +40,18 @@ export default function MyAppointments() {
 
   const statusMap: Record<number, { label: string; badge: string }> = {
     0: { label: 'Pending', badge: 'badge-amber' },
-    1: { label: 'Confirmed', badge: 'badge-teal' },
-    2: { label: 'Completed', badge: 'badge-stone' },
-    3: { label: 'Cancelled', badge: 'badge-rose' },
+    1: { label: 'Accepted', badge: 'badge-teal' },
+    2: { label: 'Rejected', badge: 'badge-rose' },
+    3: { label: 'In Progress', badge: 'badge-teal' },
+    4: { label: 'Completed', badge: 'badge-stone' },
+    5: { label: 'Cancelled', badge: 'badge-rose' },
+    6: { label: 'No Show', badge: 'badge-stone' },
   };
 
   const filtered = appointments.filter((app) => {
     if (filter === 'upcoming') return app.status === 0 || app.status === 1;
-    if (filter === 'completed') return app.status === 2;
-    if (filter === 'cancelled') return app.status === 3;
+    if (filter === 'completed') return app.status === 4;
+    if (filter === 'cancelled') return app.status === 2 || app.status === 5 || app.status === 6;
     return true;
   });
 
@@ -120,7 +123,7 @@ export default function MyAppointments() {
                   )}
                 </div>
 
-                {(app.status === 0 || app.status === 1) && (
+                {(app.status === 0 || app.status === 1 || app.status === 3) && (
                   <button
                     className="btn btn-danger"
                     disabled={cancellingId === app.id}

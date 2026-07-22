@@ -102,9 +102,12 @@ export default function DoctorAppointments() {
 
   const statusMap: Record<number, { label: string; badge: string }> = {
     0: { label: 'Pending', badge: 'badge-amber' },
-    1: { label: 'Confirmed', badge: 'badge-teal' },
-    2: { label: 'Completed', badge: 'badge-stone' },
-    3: { label: 'Cancelled', badge: 'badge-rose' },
+    1: { label: 'Accepted', badge: 'badge-teal' },
+    2: { label: 'Rejected', badge: 'badge-rose' },
+    3: { label: 'In Progress', badge: 'badge-teal' },
+    4: { label: 'Completed', badge: 'badge-stone' },
+    5: { label: 'Cancelled', badge: 'badge-rose' },
+    6: { label: 'No Show', badge: 'badge-stone' },
   };
 
   return (
@@ -169,7 +172,7 @@ export default function DoctorAppointments() {
                       <button className="btn btn-secondary" onClick={() => { setSelectedApp(app); setActiveModal('prescription'); }}>
                         + Rx Prescription
                       </button>
-                      <button className="btn btn-primary" onClick={() => handleUpdateStatus(app.id, 2)}>
+                      <button className="btn btn-primary" onClick={() => handleUpdateStatus(app.id, 4)}>
                         Mark Completed
                       </button>
                     </>

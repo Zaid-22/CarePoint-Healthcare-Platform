@@ -114,6 +114,25 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorAvailabilityDto>.SuccessResponse(result));
     }
 
+    [Authorize(Roles = "Doctor")]
+    [HttpPut("{doctorId:guid}/availability/{slotId:guid}")]
+    public async Task<ActionResult<ApiResponse<DoctorAvailabilityDto>>> UpdateAvailability(
+        Guid doctorId, Guid slotId, [FromBody] CreateAvailabilityDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _doctorService.UpdateAvailabilityAsync(doctorId, slotId, userId, dto);
+        return Ok(ApiResponse<DoctorAvailabilityDto>.SuccessResponse(result));
+    }
+
+    [Authorize(Roles = "Doctor")]
+    [HttpDelete("{doctorId:guid}/availability/{slotId:guid}")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteAvailability(Guid doctorId, Guid slotId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        await _doctorService.DeleteAvailabilityAsync(doctorId, slotId, userId);
+        return Ok(ApiResponse<string>.SuccessResponse("Availability removed."));
+    }
+
     [HttpGet("{doctorId:guid}/slots")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<AvailableSlotDto>>>> GetSlots(
         Guid doctorId, [FromQuery] DateTime date)

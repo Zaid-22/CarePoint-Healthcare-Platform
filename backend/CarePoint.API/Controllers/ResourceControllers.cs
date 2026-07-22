@@ -182,6 +182,7 @@ public class SpecialtiesController : ControllerBase
         return Ok(ApiResponse<string>.SuccessResponse("Specialty deactivated successfully."));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("seed")]
     public async Task<ActionResult<ApiResponse<string>>> SeedSpecialties()
     {

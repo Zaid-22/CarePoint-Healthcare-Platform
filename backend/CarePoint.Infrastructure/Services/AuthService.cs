@@ -43,6 +43,17 @@ public class AuthService : IAuthService
         if (existingUser != null)
             throw new ConflictException($"Email '{dto.Email}' is already registered.");
 
+        List<Guid>? validSpecialtyIds = null;
+        if (dto.Role == "Doctor" && dto.SpecialtyIds is { Count: > 0 })
+        {
+            validSpecialtyIds = await _context.Specialties
+                .Where(s => s.IsActive && dto.SpecialtyIds.Contains(s.Id))
+                .Select(s => s.Id)
+                .ToListAsync();
+            if (validSpecialtyIds.Count != dto.SpecialtyIds.Distinct().Count())
+                throw new BadRequestException("One or more selected specialties are invalid.");
+        }
+
         var user = new ApplicationUser
         {
             UserName = dto.Email,
@@ -81,9 +92,9 @@ public class AuthService : IAuthService
             };
             _context.DoctorProfiles.Add(doctorProfile);
 
-            if (dto.SpecialtyIds != null && dto.SpecialtyIds.Count > 0)
+            if (validSpecialtyIds is { Count: > 0 })
             {
-                foreach (var specialtyId in dto.SpecialtyIds)
+                foreach (var specialtyId in validSpecialtyIds)
                 {
                     _context.DoctorSpecialties.Add(new DoctorSpecialty
                     {
@@ -190,12 +201,12 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task LogoutAsync(string refreshToken)
+    public async Task LogoutAsync(string userId, string refreshToken)
     {
         var storedToken = await _context.RefreshTokens
             .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
 
-        if (storedToken != null)
+        if (storedToken != null && storedToken.UserId == userId)
         {
             storedToken.IsRevoked = true;
             storedToken.RevokedAt = DateTime.UtcNow;

@@ -9,6 +9,7 @@ const navItems = [
   { to: '/find-doctors', label: 'Find Doctors', icon: SearchIcon },
   { to: '/my-appointments', label: 'Appointments', icon: CalendarIcon },
   { to: '/medical-history', label: 'Medical History', icon: FileTextIcon },
+  { to: '/my-prescriptions', label: 'Prescriptions', icon: FileTextIcon },
   { to: '/my-profile', label: 'My Profile', icon: UserIcon },
 ];
 

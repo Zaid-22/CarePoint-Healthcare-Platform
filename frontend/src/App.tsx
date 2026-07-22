@@ -9,6 +9,7 @@ import FindDoctors from './pages/patient/FindDoctors';
 import MyAppointments from './pages/patient/MyAppointments';
 import MedicalHistoryPage from './pages/patient/MedicalHistoryPage';
 import PatientProfilePage from './pages/patient/PatientProfilePage';
+import MyPrescriptionsPage from './pages/patient/MyPrescriptionsPage';
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import DoctorAppointments from './pages/doctor/DoctorAppointments';
 import DoctorProfilePage from './pages/doctor/DoctorProfilePage';
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/my-appointments" element={<MyAppointments />} />
           <Route path="/medical-history" element={<MedicalHistoryPage />} />
           <Route path="/my-profile" element={<PatientProfilePage />} />
+          <Route path="/my-prescriptions" element={<MyPrescriptionsPage />} />
         </Route>
       </Route>
 

@@ -19,11 +19,16 @@ public class PrescriptionService : IPrescriptionService
             .Include(p => p.Items)
             .FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new NotFoundException("Prescription", id);
+        await EnsureCanReadAsync(rx, userId, role);
         return await MapToDtoAsync(rx);
     }
 
     public async Task<IReadOnlyList<PrescriptionDto>> GetByAppointmentIdAsync(Guid appointmentId, string userId, string role)
     {
+        var appointment = await _context.Appointments.FindAsync(appointmentId)
+            ?? throw new NotFoundException("Appointment", appointmentId);
+        await EnsureCanReadAppointmentAsync(appointment, userId, role);
+
         var prescriptions = await _context.Prescriptions
             .Include(p => p.Items)
             .Where(p => p.AppointmentId == appointmentId)
@@ -63,6 +68,11 @@ public class PrescriptionService : IPrescriptionService
 
         var appointment = await _context.Appointments.FindAsync(dto.AppointmentId)
             ?? throw new NotFoundException("Appointment", dto.AppointmentId);
+        if (appointment.DoctorProfileId != doctor.Id)
+            throw new ForbiddenException("You can only issue prescriptions for your own appointments.");
+        if (appointment.Status is not (Domain.Enums.AppointmentStatus.Accepted or Domain.Enums.AppointmentStatus.InProgress or Domain.Enums.AppointmentStatus.Completed))
+            throw new BadRequestException("A prescription can only be issued for an accepted or completed appointment.");
+        ValidateItems(dto);
 
         var rx = new Prescription
         {
@@ -92,6 +102,12 @@ public class PrescriptionService : IPrescriptionService
             .FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new NotFoundException("Prescription", id);
 
+        var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
+            ?? throw new ForbiddenException("Only doctors can update prescriptions.");
+        if (rx.DoctorProfileId != doctor.Id)
+            throw new ForbiddenException("You can only update prescriptions that you issued.");
+        ValidateItems(dto);
+
         rx.Notes = dto.Notes;
         _context.PrescriptionItems.RemoveRange(rx.Items);
         rx.Items = dto.Items.Select(i => new PrescriptionItem
@@ -106,6 +122,43 @@ public class PrescriptionService : IPrescriptionService
 
         await _context.SaveChangesAsync();
         return await MapToDtoAsync(rx);
+    }
+
+    private async Task EnsureCanReadAsync(Prescription prescription, string userId, string role)
+    {
+        if (role == "Admin") return;
+
+        var appointment = await _context.Appointments.FindAsync(prescription.AppointmentId)
+            ?? throw new NotFoundException("Appointment", prescription.AppointmentId);
+        await EnsureCanReadAppointmentAsync(appointment, userId, role);
+    }
+
+    private async Task EnsureCanReadAppointmentAsync(Appointment appointment, string userId, string role)
+    {
+        if (role == "Admin") return;
+
+        var patient = await _context.PatientProfiles.FindAsync(appointment.PatientProfileId);
+        if (role == "Patient" && patient?.UserId == userId) return;
+
+        if (role == "Doctor")
+        {
+            var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
+            if (doctor != null && await _context.Appointments.AnyAsync(a =>
+                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == appointment.PatientProfileId))
+                return;
+        }
+
+        throw new ForbiddenException();
+    }
+
+    private static void ValidateItems(CreatePrescriptionDto dto)
+    {
+        if (dto.Items.Count == 0)
+            throw new BadRequestException("At least one medication is required.");
+        if (dto.Items.Any(item => string.IsNullOrWhiteSpace(item.MedicationName) ||
+                                  string.IsNullOrWhiteSpace(item.Dosage) ||
+                                  string.IsNullOrWhiteSpace(item.Frequency)))
+            throw new BadRequestException("Medication name, dosage, and frequency are required.");
     }
 
     private async Task<PrescriptionDto> MapToDtoAsync(Prescription p)

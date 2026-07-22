@@ -1,0 +1,44 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: carepoint-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: CarePoint.API/Dockerfile
+    container_name: carepoint-api
+    ports:
+      - "5001:8080"
+    depends_on:
+      - sqlserver
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=CarePointDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env};TrustServerCertificate=True;
+      - JwtSettings__Secret=${JWT_SECRET:?Set JWT_SECRET in .env}
+      - JwtSettings__Issuer=CarePoint
+      - JwtSettings__Audience=CarePointApp
+      - SeedDemoData=${SEED_DEMO_DATA:-false}
+      - DemoSeedPassword=${DEMO_SEED_PASSWORD:-}
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: carepoint-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    environment:
+      - VITE_API_PROXY_TARGET=http://api:8080
+
+volumes:
+  sqlserver-data:

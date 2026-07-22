@@ -3,6 +3,17 @@
 # Exit script cleanly when stopped (Ctrl+C)
 trap 'echo "\nStopping CarePoint processes..."; kill 0' EXIT INT TERM
 
+if [ -f .env ]; then
+    set -a
+    . ./.env
+    set +a
+fi
+
+: "${MSSQL_SA_PASSWORD:?Create .env from .env.example and set MSSQL_SA_PASSWORD.}"
+: "${JWT_SECRET:?Create .env from .env.example and set JWT_SECRET.}"
+export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=CarePointDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+export JwtSettings__Secret="${JWT_SECRET}"
+
 echo "=========================================="
 echo "🏥 CarePoint - Fullstack Runner"
 echo "=========================================="
