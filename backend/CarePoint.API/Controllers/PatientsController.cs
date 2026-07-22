@@ -1,0 +1,61 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using CarePoint.Application.DTOs.Common;
+using CarePoint.Application.DTOs.Patients;
+using CarePoint.Application.Interfaces;
+
+namespace CarePoint.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class PatientsController : ControllerBase
+{
+    private readonly IPatientService _patientService;
+
+    public PatientsController(IPatientService patientService)
+    {
+        _patientService = patientService;
+    }
+
+    [Authorize(Roles = "Admin,Doctor")]
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PatientDto>>>> GetAll()
+    {
+        var result = await _patientService.GetAllAsync();
+        return Ok(ApiResponse<IReadOnlyList<PatientDto>>.SuccessResponse(result));
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<PatientDto>>> GetById(Guid id)
+    {
+        var result = await _patientService.GetByIdAsync(id);
+        return Ok(ApiResponse<PatientDto>.SuccessResponse(result));
+    }
+
+    [HttpGet("me")]
+    public async Task<ActionResult<ApiResponse<PatientDto>>> GetMyProfile()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _patientService.GetByUserIdAsync(userId);
+        return Ok(ApiResponse<PatientDto>.SuccessResponse(result));
+    }
+
+    [HttpPut("me")]
+    [HttpPut]
+    public async Task<ActionResult<ApiResponse<PatientDto>>> UpdateMyProfile([FromBody] UpdatePatientDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _patientService.UpdateMyProfileAsync(userId, dto);
+        return Ok(ApiResponse<PatientDto>.SuccessResponse(result));
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<PatientDto>>> Update(Guid id, [FromBody] UpdatePatientDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _patientService.UpdateProfileAsync(id, userId, dto);
+        return Ok(ApiResponse<PatientDto>.SuccessResponse(result));
+    }
+}
