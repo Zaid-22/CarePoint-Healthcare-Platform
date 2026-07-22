@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { DoctorDto, SpecialtyDto, DoctorAvailabilityDto, UpdateDoctorRequest, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
-import { DoctorIcon, CheckIcon, SearchIcon, StarIcon, PhoneIcon, MailIcon, ShieldIcon, ActivityIcon, UserIcon, ClockIcon, FolderIcon, EyeIcon, CheckCircleIcon, XCircleIcon, ChevronDownIcon, XIcon, PlusIcon } from '../../components/common/Icons';
+import { DoctorIcon, CheckIcon, MailIcon, ActivityIcon, UserIcon, ClockIcon, FolderIcon, EyeIcon, CheckCircleIcon, XCircleIcon, XIcon, PlusIcon } from '../../components/common/Icons';
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
@@ -25,8 +25,6 @@ export default function DoctorProfilePage() {
   const [profile, setProfile] = useState<DoctorDto | null>(null);
   const [allSpecialties, setAllSpecialties] = useState<SpecialtyDto[]>([]);
   const [selectedSpecialtyIds, setSelectedSpecialtyIds] = useState<string[]>([]);
-  const [specialtySearch, setSpecialtySearch] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const [bio, setBio] = useState('');
   const [consultationFee, setConsultationFee] = useState<number | ''>('');
@@ -201,11 +199,6 @@ export default function DoctorProfilePage() {
     <span className="badge badge-amber-hero" style={{ padding: '6px 14px', fontSize: '0.8125rem' }}>
       <ClockIcon size={15} color="#451a03" /> Pending Approval
     </span>
-  );
-
-  const filteredSpecialties = allSpecialties.filter((s) =>
-    s.name.toLowerCase().includes(specialtySearch.toLowerCase()) ||
-    (s.description && s.description.toLowerCase().includes(specialtySearch.toLowerCase()))
   );
 
   const selectedSpecialtiesList = allSpecialties.filter((s) => selectedSpecialtyIds.includes(s.id));

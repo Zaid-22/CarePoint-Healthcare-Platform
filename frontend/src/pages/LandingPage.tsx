@@ -7,7 +7,6 @@ import {
   CalendarIcon,
   PillIcon,
   FileTextIcon,
-  DoctorIcon,
   ShieldLockIcon,
   CheckIcon,
   ClockIcon,

@@ -31,7 +31,7 @@ export default function MyAppointments() {
     try {
       await api.put(`/appointments/${id}/cancel`, { cancellationReason: reason });
       await fetchAppointments();
-    } catch (err) {
+    } catch {
       alert('Failed to cancel appointment');
     } finally {
       setCancellingId(null);

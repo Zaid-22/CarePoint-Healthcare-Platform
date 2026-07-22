@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { PatientDto, UpdatePatientDto, ApiResponse } from '../../types';
-import { UserIcon, PhoneIcon, MailIcon, ShieldIcon, CheckIcon, ActivityIcon, EditIcon } from '../../components/common/Icons';
+import { UserIcon, PhoneIcon, MailIcon, ShieldIcon, CheckIcon, EditIcon } from '../../components/common/Icons';
 
 export default function PatientProfilePage() {
   const [profile, setProfile] = useState<PatientDto | null>(null);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { AppointmentDto, MedicalRecordDto, ApiResponse } from '../../types';
-import { FileTextIcon, DoctorIcon, CalendarIcon } from '../../components/common/Icons';
+import { FileTextIcon } from '../../components/common/Icons';
 
 export default function DoctorAppointments() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
@@ -56,7 +56,7 @@ export default function DoctorAppointments() {
     try {
       await api.put(`/appointments/${id}/status`, { status });
       fetchAppointments();
-    } catch (e) {
+    } catch {
       alert('Failed to update appointment status');
     }
   };
@@ -75,7 +75,7 @@ export default function DoctorAppointments() {
       setDiagnosis('');
       setTreatment('');
       setNotes('');
-    } catch (e) {
+    } catch {
       alert('Failed to create medical record.');
     }
   };
@@ -95,7 +95,7 @@ export default function DoctorAppointments() {
       setMedName('');
       setDosage('');
       setFreq('');
-    } catch (e) {
+    } catch {
       alert('Failed to create prescription.');
     }
   };

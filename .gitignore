@@ -32,8 +32,9 @@ appsettings.*.local.json
 logs/
 *.log
 
-# Frontend Design
+# Skills & Agents
+skills/
+.skills/
+.agents/
 frontend-design.md
-
-# agent
 agent.md
