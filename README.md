@@ -64,6 +64,8 @@ Copy the example configuration and replace both placeholders with strong, local-
 cp .env.example .env
 ```
 
+Password resets use SMTP when `SMTP_HOST` and `EMAIL_FROM_ADDRESS` are configured. In Development, if SMTP is intentionally omitted, the reset URL is written to the API log so the flow remains testable locally.
+
 ### Run the complete development stack
 
 ```bash

@@ -44,7 +44,7 @@ export default function FindDoctors() {
   const fetchSlots = async (doctorId: string, date: string) => {
     try {
       const res = await api.get<ApiResponse<AvailableSlotDto[]>>(
-        `/doctors/${doctorId}/available-slots?date=${date}`
+        `/doctors/${doctorId}/slots?date=${date}`
       );
       setSlots(res.data.data || []);
     } catch (e) {

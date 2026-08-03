@@ -38,6 +38,25 @@ public class ChangePasswordValidator : AbstractValidator<ChangePasswordDto>
     }
 }
 
+public class ForgotPasswordValidator : AbstractValidator<ForgotPasswordDto>
+{
+    public ForgotPasswordValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+    }
+}
+
+public class ResetPasswordValidator : AbstractValidator<ResetPasswordDto>
+{
+    public ResetPasswordValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.Token).NotEmpty();
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8);
+        RuleFor(x => x.ConfirmNewPassword).Equal(x => x.NewPassword).WithMessage("Passwords do not match.");
+    }
+}
+
 public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentDto>
 {
     public CreateAppointmentValidator()

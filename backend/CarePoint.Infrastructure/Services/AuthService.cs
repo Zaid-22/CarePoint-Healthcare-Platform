@@ -25,15 +25,21 @@ public class AuthService : IAuthService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _context;
     private readonly JwtSettings _jwtSettings;
+    private readonly EmailSettings _emailSettings;
+    private readonly IPasswordResetEmailSender _passwordResetEmailSender;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext context,
-        IOptions<JwtSettings> jwtSettings)
+        IOptions<JwtSettings> jwtSettings,
+        IOptions<EmailSettings> emailSettings,
+        IPasswordResetEmailSender passwordResetEmailSender)
     {
         _userManager = userManager;
         _context = context;
         _jwtSettings = jwtSettings.Value;
+        _emailSettings = emailSettings.Value;
+        _passwordResetEmailSender = passwordResetEmailSender;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -225,6 +231,8 @@ public class AuthService : IAuthService
             var errors = result.Errors.Select(e => e.Description).ToList();
             throw new BadRequestException(string.Join("; ", errors));
         }
+
+        await RevokeActiveRefreshTokensAsync(user.Id);
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordDto dto)
@@ -234,7 +242,8 @@ public class AuthService : IAuthService
         if (user == null) return;
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        // TODO: Send email with reset token
+        var resetUrl = CreatePasswordResetUrl(dto.Email, token);
+        await _passwordResetEmailSender.SendAsync(user.Email!, resetUrl);
     }
 
     public async Task ResetPasswordAsync(ResetPasswordDto dto)
@@ -248,6 +257,8 @@ public class AuthService : IAuthService
             var errors = result.Errors.Select(e => e.Description).ToList();
             throw new BadRequestException(string.Join("; ", errors));
         }
+
+        await RevokeActiveRefreshTokensAsync(user.Id);
     }
 
     public async Task<AuthResponseDto> GetCurrentUserAsync(string userId)
@@ -314,5 +325,27 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         return refreshToken;
+    }
+
+    private async Task RevokeActiveRefreshTokensAsync(string userId)
+    {
+        var activeTokens = await _context.RefreshTokens
+            .Where(token => token.UserId == userId && !token.IsRevoked)
+            .ToListAsync();
+
+        foreach (var token in activeTokens)
+        {
+            token.IsRevoked = true;
+            token.RevokedAt = DateTime.UtcNow;
+        }
+
+        if (activeTokens.Count > 0)
+            await _context.SaveChangesAsync();
+    }
+
+    private string CreatePasswordResetUrl(string email, string token)
+    {
+        var separator = _emailSettings.PasswordResetUrl.Contains('?') ? '&' : '?';
+        return $"{_emailSettings.PasswordResetUrl}{separator}email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
     }
 }

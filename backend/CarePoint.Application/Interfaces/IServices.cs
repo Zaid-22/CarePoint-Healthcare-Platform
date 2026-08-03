@@ -5,6 +5,11 @@ using CarePoint.Application.DTOs.Medical;
 
 namespace CarePoint.Application.Interfaces;
 
+public interface IPasswordResetEmailSender
+{
+    Task SendAsync(string recipientEmail, string resetUrl, CancellationToken cancellationToken = default);
+}
+
 public interface IDoctorService
 {
     Task<DoctorDto> GetByIdAsync(Guid id);

@@ -28,6 +28,14 @@ services:
       - JwtSettings__Audience=CarePointApp
       - SeedDemoData=${SEED_DEMO_DATA:-false}
       - DemoSeedPassword=${DEMO_SEED_PASSWORD:-}
+      - EmailSettings__FromAddress=${EMAIL_FROM_ADDRESS:-}
+      - EmailSettings__FromName=${EMAIL_FROM_NAME:-CarePoint}
+      - EmailSettings__SmtpHost=${SMTP_HOST:-}
+      - EmailSettings__SmtpPort=${SMTP_PORT:-587}
+      - EmailSettings__SmtpUser=${SMTP_USER:-}
+      - EmailSettings__SmtpPassword=${SMTP_PASSWORD:-}
+      - EmailSettings__UseSsl=${SMTP_USE_SSL:-true}
+      - EmailSettings__PasswordResetUrl=${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
 
   frontend:
     build:

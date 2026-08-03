@@ -182,6 +182,12 @@ export default function LoginPage() {
               {errors.password && <span className="form-error">{errors.password.message}</span>}
             </div>
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -10 }}>
+              <Link to="/forgot-password" style={{ color: 'var(--accent)', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>
+                Forgot your password?
+              </Link>
+            </div>
+
             <button
               type="submit"
               className="btn btn-primary"

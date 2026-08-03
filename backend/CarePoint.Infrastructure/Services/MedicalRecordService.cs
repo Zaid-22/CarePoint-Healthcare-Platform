@@ -33,13 +33,17 @@ public class MedicalRecordService : IMedicalRecordService
 
     public async Task<IReadOnlyList<MedicalRecordDto>> GetByPatientIdAsync(Guid patientId, string userId, string role)
     {
-        await EnsureCanReadPatientHistoryAsync(patientId, userId, role);
-        var records = await _context.MedicalRecords
+        var doctorId = await GetDoctorIdForPatientHistoryAsync(patientId, userId, role);
+        var query = _context.MedicalRecords
             .Include(r => r.Appointment).ThenInclude(a => a.DoctorProfile)
             .Include(r => r.Appointment).ThenInclude(a => a.PatientProfile)
-            .Where(r => r.Appointment.PatientProfileId == patientId)
-            .OrderByDescending(r => r.CreatedAt)
-            .ToListAsync();
+            .Where(r => r.Appointment.PatientProfileId == patientId);
+
+        // A doctor may only review records from appointments they personally handled.
+        if (doctorId.HasValue)
+            query = query.Where(r => r.Appointment.DoctorProfileId == doctorId.Value);
+
+        var records = await query.OrderByDescending(r => r.CreatedAt).ToListAsync();
         var result = new List<MedicalRecordDto>();
         foreach (var record in records)
             result.Add(await MapToDtoAsync(record));
@@ -105,31 +109,24 @@ public class MedicalRecordService : IMedicalRecordService
 
         if (role == "Patient" && record.Appointment.PatientProfile.UserId == userId) return;
 
-        if (role == "Doctor")
-        {
-            var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor != null && await _context.Appointments.AnyAsync(a =>
-                    a.DoctorProfileId == doctor.Id &&
-                    a.PatientProfileId == record.Appointment.PatientProfileId))
-                return;
-        }
+        if (role == "Doctor" && record.Appointment.DoctorProfile.UserId == userId) return;
 
         throw new ForbiddenException();
     }
 
-    private async Task EnsureCanReadPatientHistoryAsync(Guid patientId, string userId, string role)
+    private async Task<Guid?> GetDoctorIdForPatientHistoryAsync(Guid patientId, string userId, string role)
     {
         var patient = await _context.PatientProfiles.FindAsync(patientId)
             ?? throw new NotFoundException("Patient", patientId);
 
-        if (role == "Admin" || (role == "Patient" && patient.UserId == userId)) return;
+        if (role == "Admin" || (role == "Patient" && patient.UserId == userId)) return null;
 
         if (role == "Doctor")
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor != null && await _context.Appointments.AnyAsync(a =>
                     a.DoctorProfileId == doctor.Id && a.PatientProfileId == patientId))
-                return;
+                return doctor.Id;
         }
 
         throw new ForbiddenException();
