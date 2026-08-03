@@ -1,15 +1,25 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import MedicalDocumentsPanel from '../../components/common/MedicalDocumentsPanel';
-import type { ApiResponse, PatientDto } from '../../types';
+import type { ApiResponse, AppointmentDto, PatientDto } from '../../types';
 
 export default function MyDocumentsPage() {
   const [patientId, setPatientId] = useState('');
   const [failed, setFailed] = useState(false);
+  const [appointmentOptions, setAppointmentOptions] = useState<Array<{ id: string; label: string }>>([]);
 
   useEffect(() => {
-    api.get<ApiResponse<PatientDto>>('/patients/me')
-      .then((response) => setPatientId(response.data.data.id))
+    Promise.all([
+      api.get<ApiResponse<PatientDto>>('/patients/me'),
+      api.get<ApiResponse<AppointmentDto[]>>('/appointments/my-appointments?take=100'),
+    ])
+      .then(([patientResponse, appointmentResponse]) => {
+        setPatientId(patientResponse.data.data.id);
+        setAppointmentOptions((appointmentResponse.data.data ?? []).map((appointment) => ({
+          id: appointment.id,
+          label: `${appointment.doctorName} · ${new Date(appointment.appointmentDate).toLocaleDateString()}`,
+        })));
+      })
       .catch(() => setFailed(true));
   }, []);
 
@@ -25,7 +35,11 @@ export default function MyDocumentsPage() {
       {failed ? (
         <div className="alert alert-error">Your patient profile could not be loaded.</div>
       ) : patientId ? (
-        <MedicalDocumentsPanel patientProfileId={patientId} allowDelete />
+        <MedicalDocumentsPanel
+          patientProfileId={patientId}
+          appointmentOptions={appointmentOptions}
+          allowDelete
+        />
       ) : (
         <div className="skeleton" style={{ height: 220 }} />
       )}

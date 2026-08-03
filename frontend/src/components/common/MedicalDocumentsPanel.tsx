@@ -6,6 +6,7 @@ import { FileTextIcon, ShieldLockIcon } from './Icons';
 interface Props {
   patientProfileId: string;
   appointmentId?: string;
+  appointmentOptions?: Array<{ id: string; label: string }>;
   allowDelete?: boolean;
   compact?: boolean;
 }
@@ -16,12 +17,14 @@ const formatSize = (bytes: number) =>
 export default function MedicalDocumentsPanel({
   patientProfileId,
   appointmentId,
+  appointmentOptions,
   allowDelete = false,
   compact = false,
 }: Props) {
   const [documents, setDocuments] = useState<MedicalDocumentDto[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('Lab result');
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState(appointmentId ?? '');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +53,7 @@ export default function MedicalDocumentsPanel({
     if (!file) return;
     const form = new FormData();
     form.append('patientProfileId', patientProfileId);
-    if (appointmentId) form.append('appointmentId', appointmentId);
+    if (selectedAppointmentId) form.append('appointmentId', selectedAppointmentId);
     form.append('documentType', documentType);
     form.append('file', file);
     setUploading(true);
@@ -109,7 +112,7 @@ export default function MedicalDocumentsPanel({
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 14 }}>
           Add a document
         </div>
-        <div className={compact ? 'document-upload-grid is-compact' : 'document-upload-grid'}>
+        <div className={`document-upload-grid${compact ? ' is-compact' : ''}${appointmentOptions ? ' has-appointments' : ''}`}>
           <div className="form-group">
             <label className="form-label">Document type</label>
             <select className="form-input" value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
@@ -120,6 +123,21 @@ export default function MedicalDocumentsPanel({
               <option>Other</option>
             </select>
           </div>
+          {appointmentOptions && (
+            <div className="form-group">
+              <label className="form-label">Share with a consultation</label>
+              <select
+                className="form-input"
+                value={selectedAppointmentId}
+                onChange={(event) => setSelectedAppointmentId(event.target.value)}
+              >
+                <option value="">Private to me</option>
+                {appointmentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">PDF or image · 10 MB max</label>
             <input

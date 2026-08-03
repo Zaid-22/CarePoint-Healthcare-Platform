@@ -56,6 +56,8 @@ public class DocumentsController : ControllerBase
             throw new BadRequestException("Document type must be 100 characters or fewer.");
 
         var fileName = Path.GetFileName(request.File.FileName);
+        if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 500)
+            throw new BadRequestException("The document file name must be 500 characters or fewer.");
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         var contentType = extension switch
         {

@@ -393,8 +393,13 @@ body {
   grid-template-columns: 1fr;
 }
 
+.document-upload-grid.has-appointments {
+  grid-template-columns: minmax(130px, 0.6fr) minmax(180px, 1fr) minmax(220px, 1.2fr) auto;
+}
+
 @media (max-width: 720px) {
-  .document-upload-grid {
+  .document-upload-grid,
+  .document-upload-grid.has-appointments {
     grid-template-columns: 1fr;
   }
 
