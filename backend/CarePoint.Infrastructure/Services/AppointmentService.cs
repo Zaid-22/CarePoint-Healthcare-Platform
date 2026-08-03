@@ -50,9 +50,11 @@ public class AppointmentService : IAppointmentService
         query = ApplyListFilters(query, statusGroup, date);
 
         var totalCount = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(a => a.AppointmentDate)
-            .ThenByDescending(a => a.StartTime)
+        var isUpcoming = string.Equals(statusGroup, "upcoming", StringComparison.OrdinalIgnoreCase);
+        var orderedQuery = isUpcoming
+            ? query.OrderBy(a => a.AppointmentDate).ThenBy(a => a.StartTime)
+            : query.OrderByDescending(a => a.AppointmentDate).ThenByDescending(a => a.StartTime);
+        var items = await orderedQuery
             .Skip(skip)
             .Take(take)
             .Select(a => new AppointmentDto
@@ -79,14 +81,25 @@ public class AppointmentService : IAppointmentService
     public async Task<AppointmentSummaryDto> GetSummaryAsync(string userId, string role)
     {
         var query = await GetAccessibleQueryAsync(userId, role);
-        var clinicToday = _clinicClock.LocalNow.Date;
+        var localNow = _clinicClock.LocalNow;
+        var clinicToday = localNow.Date;
+        var clinicTime = TimeOnly.FromDateTime(localNow);
         return new AppointmentSummaryDto
         {
             TotalCount = await query.CountAsync(),
-            PendingCount = await query.CountAsync(a => a.Status == AppointmentStatus.Pending),
+            PendingCount = await query.CountAsync(a =>
+                a.Status == AppointmentStatus.Pending &&
+                (a.AppointmentDate.Date > clinicToday ||
+                 (a.AppointmentDate.Date == clinicToday && a.StartTime > clinicTime))),
             UpcomingCount = await query.CountAsync(a =>
-                a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Accepted),
-            TodayCount = await query.CountAsync(a => a.AppointmentDate.Date == clinicToday)
+                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Accepted) &&
+                (a.AppointmentDate.Date > clinicToday ||
+                 (a.AppointmentDate.Date == clinicToday && a.StartTime > clinicTime))),
+            TodayCount = await query.CountAsync(a =>
+                a.AppointmentDate.Date == clinicToday &&
+                (a.Status == AppointmentStatus.Pending ||
+                 a.Status == AppointmentStatus.Accepted ||
+                 a.Status == AppointmentStatus.InProgress))
         };
     }
 
@@ -344,12 +357,21 @@ public class AppointmentService : IAppointmentService
         throw new ForbiddenException();
     }
 
-    private static IQueryable<Appointment> ApplyListFilters(
+    private IQueryable<Appointment> ApplyListFilters(
         IQueryable<Appointment> query, string? statusGroup, DateTime? date)
     {
+        var localNow = _clinicClock.LocalNow;
+        var localDate = localNow.Date;
+        var localTime = TimeOnly.FromDateTime(localNow);
         query = statusGroup?.ToLowerInvariant() switch
         {
-            "upcoming" => query.Where(a => a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Accepted),
+            "upcoming" => query.Where(a =>
+                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Accepted) &&
+                (a.AppointmentDate.Date > localDate ||
+                 (a.AppointmentDate.Date == localDate && a.StartTime > localTime))),
+            "active" => query.Where(a => a.Status == AppointmentStatus.Pending ||
+                                          a.Status == AppointmentStatus.Accepted ||
+                                          a.Status == AppointmentStatus.InProgress),
             "completed" => query.Where(a => a.Status == AppointmentStatus.Completed),
             "cancelled" => query.Where(a => a.Status == AppointmentStatus.Rejected ||
                                             a.Status == AppointmentStatus.Cancelled ||

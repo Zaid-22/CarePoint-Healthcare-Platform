@@ -109,7 +109,11 @@ public class DoctorsController : ControllerBase
     [HttpGet("{doctorId:guid}/availability")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DoctorAvailabilityDto>>>> GetAvailability(Guid doctorId)
     {
-        var result = await _doctorService.GetAvailabilityAsync(doctorId);
+        var userId = User.Identity?.IsAuthenticated == true
+            ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            : null;
+        var role = User.IsInRole("Admin") ? "Admin" : User.IsInRole("Doctor") ? "Doctor" : null;
+        var result = await _doctorService.GetAvailabilityAsync(doctorId, userId, role);
         return Ok(ApiResponse<IReadOnlyList<DoctorAvailabilityDto>>.SuccessResponse(result));
     }
 

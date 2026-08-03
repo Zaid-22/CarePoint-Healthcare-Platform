@@ -9,6 +9,7 @@ namespace CarePoint.Domain.Entities;
 public class RefreshToken : BaseEntity
 {
     public string UserId { get; set; } = string.Empty;
+    public Guid FamilyId { get; set; }
     public string TokenHash { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public bool IsRevoked { get; set; }

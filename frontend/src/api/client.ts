@@ -17,15 +17,27 @@ const clearStoredAuth = () => {
   localStorage.removeItem('user');
 };
 
+const rotateRefreshToken = async (expectedRefreshToken: string): Promise<string> => {
+  const currentRefreshToken = localStorage.getItem('refreshToken');
+  const currentAccessToken = localStorage.getItem('accessToken');
+  if (currentRefreshToken && currentRefreshToken !== expectedRefreshToken && currentAccessToken) {
+    return currentAccessToken;
+  }
+
+  const { data } = await axios.post<ApiResponse<AuthResponse>>(
+    `${baseURL}/auth/refresh-token`,
+    { refreshToken: expectedRefreshToken },
+  );
+  localStorage.setItem('accessToken', data.data.accessToken);
+  localStorage.setItem('refreshToken', data.data.refreshToken);
+  return data.data.accessToken;
+};
+
 const refreshAccessToken = (refreshToken: string): Promise<string> => {
   if (!refreshInFlight) {
-    refreshInFlight = axios
-      .post<ApiResponse<AuthResponse>>(`${baseURL}/auth/refresh-token`, { refreshToken })
-      .then(({ data }) => {
-        localStorage.setItem('accessToken', data.data.accessToken);
-        localStorage.setItem('refreshToken', data.data.refreshToken);
-        return data.data.accessToken;
-      })
+    refreshInFlight = (navigator.locks
+      ? navigator.locks.request('carepoint-refresh-token', () => rotateRefreshToken(refreshToken))
+      : rotateRefreshToken(refreshToken))
       .finally(() => {
         refreshInFlight = null;
       });

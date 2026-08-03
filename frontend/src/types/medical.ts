@@ -46,7 +46,8 @@ export interface MedicalDocumentDto {
   patientProfileId: string;
   appointmentId?: string;
   fileName: string;
-  fileUrl: string;
+  downloadUrl: string;
+  contentType: string;
   documentType?: string;
   fileSizeBytes: number;
   createdAt: string;

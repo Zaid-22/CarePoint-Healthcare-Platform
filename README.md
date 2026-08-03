@@ -66,7 +66,15 @@ cp .env.example .env
 
 Password resets use SMTP when `SMTP_HOST` and `EMAIL_FROM_ADDRESS` are configured. In Development, if SMTP is intentionally omitted, the reset URL is written to the API log so the flow remains testable locally.
 
-Appointment dates and times use `CLINIC_TIME_ZONE` (`Asia/Amman` by default). Production deployments should run `dotnet ef database update` as a release step and leave `INITIALIZE_DATABASE_ON_STARTUP=false`, which keeps `/health/live` available during database outages. When the API is behind a reverse proxy, configure each trusted proxy with `ForwardedHeaders__KnownProxies__0`, `__1`, and so on.
+Appointment dates and times use `CLINIC_TIME_ZONE` (`Asia/Amman` by default). Production deployments should run the API's one-shot initialization command as a release step and leave `INITIALIZE_DATABASE_ON_STARTUP=false`, which keeps `/health/live` available during database outages:
+
+```bash
+dotnet CarePoint.API.dll --initialize-database
+```
+
+The command applies migrations, creates the required `Admin`, `Doctor`, and `Patient` roles, and idempotently seeds clinical specialties and clinics. It never creates demo users. When the API is behind a reverse proxy, configure each trusted proxy with `ForwardedHeaders__KnownProxies__0`, `__1`, and so on.
+
+Medical documents are stored outside the public web root and streamed through authorized API endpoints. Mount persistent storage at the configured `MedicalDocuments__StoragePath`; the included Docker Compose stack uses the `medical-documents` volume automatically.
 
 ### Run the complete development stack
 

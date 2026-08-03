@@ -369,3 +369,45 @@ body {
   transform: rotate(30deg) translateY(100%);
 }
 
+.alert {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  border: 1px solid var(--border-default);
+}
+
+.alert-error {
+  color: #9f1239;
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.document-upload-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(240px, 1.3fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.document-upload-grid.is-compact {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 720px) {
+  .document-upload-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .document-row {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .document-actions {
+    width: 100%;
+  }
+
+  .document-actions .btn {
+    flex: 1;
+  }
+}

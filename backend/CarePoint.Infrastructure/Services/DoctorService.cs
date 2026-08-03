@@ -28,12 +28,16 @@ public class DoctorService : IDoctorService
         _clinicClock = clinicClock;
     }
 
-    public async Task<DoctorDto> GetByIdAsync(Guid id)
+    public async Task<DoctorDto> GetByIdAsync(Guid id) =>
+        await GetByIdInternalAsync(id, requireApproved: true);
+
+    private async Task<DoctorDto> GetByIdInternalAsync(Guid id, bool requireApproved)
     {
         var doctor = await _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
-            .FirstOrDefaultAsync(d => d.Id == id)
+            .FirstOrDefaultAsync(d => d.Id == id &&
+                (!requireApproved || d.ApprovalStatus == DoctorApprovalStatus.Approved))
             ?? throw new NotFoundException("Doctor", id);
 
         var user = await _userManager.FindByIdAsync(doctor.UserId)
@@ -192,7 +196,7 @@ public class DoctorService : IDoctorService
         }
 
         await _context.SaveChangesAsync();
-        return await GetByIdAsync(doctor.Id);
+        return await GetByIdInternalAsync(doctor.Id, requireApproved: false);
     }
 
     public async Task<DoctorDto> UpdateProfileAsync(Guid id, string userId, UpdateDoctorDto dto)
@@ -231,7 +235,7 @@ public class DoctorService : IDoctorService
         }
 
         await _context.SaveChangesAsync();
-        return await GetByIdAsync(doctor.Id);
+        return await GetByIdInternalAsync(doctor.Id, requireApproved: false);
     }
 
     public async Task<DoctorDto> UpdateProfileByUserIdAsync(string userId, UpdateDoctorDto dto)
@@ -282,7 +286,7 @@ public class DoctorService : IDoctorService
         );
         await transaction.CommitAsync();
 
-        return await GetByIdAsync(id);
+        return await GetByIdInternalAsync(id, requireApproved: false);
     }
 
     public async Task<DoctorDto> RejectAsync(Guid id)
@@ -302,11 +306,22 @@ public class DoctorService : IDoctorService
         );
         await transaction.CommitAsync();
 
-        return await GetByIdAsync(id);
+        return await GetByIdInternalAsync(id, requireApproved: false);
     }
 
-    public async Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(Guid doctorId)
+    public async Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(
+        Guid doctorId, string? requesterUserId = null, string? requesterRole = null)
     {
+        var doctor = await _context.DoctorProfiles.AsNoTracking()
+            .Where(d => d.Id == doctorId)
+            .Select(d => new { d.UserId, d.ApprovalStatus })
+            .FirstOrDefaultAsync()
+            ?? throw new NotFoundException("Doctor", doctorId);
+
+        if (!DoctorDirectoryAccessRules.CanViewAvailability(
+                doctor.ApprovalStatus, doctor.UserId, requesterUserId, requesterRole))
+            throw new NotFoundException("Doctor", doctorId);
+
         var slots = await _context.DoctorAvailabilities
             .Where(da => da.DoctorProfileId == doctorId)
             .OrderBy(da => da.DayOfWeek).ThenBy(da => da.StartTime)
@@ -368,6 +383,7 @@ public class DoctorService : IDoctorService
 
         ValidateAvailability(dto);
         await EnsureAvailabilityDoesNotOverlapAsync(doctorId, dto, slotId);
+        await EnsureBookedAppointmentsRemainCoveredAsync(doctorId, slotId, dto);
 
         slot.DayOfWeek = dto.DayOfWeek;
         slot.StartTime = dto.StartTime;
@@ -395,12 +411,18 @@ public class DoctorService : IDoctorService
         if (slot.DoctorProfileId != doctorId)
             throw new ForbiddenException();
 
+        await EnsureBookedAppointmentsRemainCoveredAsync(doctorId, slotId, replacement: null);
         _context.DoctorAvailabilities.Remove(slot);
         await _context.SaveChangesAsync();
     }
 
     public async Task<IReadOnlyList<AvailableSlotDto>> GetAvailableSlotsAsync(Guid doctorId, DateTime date)
     {
+        var isApproved = await _context.DoctorProfiles.AsNoTracking()
+            .AnyAsync(d => d.Id == doctorId && d.ApprovalStatus == DoctorApprovalStatus.Approved);
+        if (!isApproved)
+            throw new NotFoundException("Doctor", doctorId);
+
         var dayOfWeek = date.DayOfWeek;
         var schedules = await _context.DoctorAvailabilities
             .Where(da => da.DoctorProfileId == doctorId && da.DayOfWeek == dayOfWeek)
@@ -458,6 +480,54 @@ public class DoctorService : IDoctorService
 
         if (overlaps)
             throw new ConflictException("Availability periods on the same day cannot overlap.");
+    }
+
+    private async Task EnsureBookedAppointmentsRemainCoveredAsync(
+        Guid doctorId, Guid changedSlotId, CreateAvailabilityDto? replacement)
+    {
+        var localNow = _clinicClock.LocalNow;
+        var localDate = localNow.Date;
+        var localTime = TimeOnly.FromDateTime(localNow);
+
+        var appointments = await _context.Appointments.AsNoTracking()
+            .Where(a => a.DoctorProfileId == doctorId &&
+                (a.Status == AppointmentStatus.Pending ||
+                 a.Status == AppointmentStatus.Accepted ||
+                 a.Status == AppointmentStatus.InProgress) &&
+                (a.AppointmentDate.Date > localDate ||
+                 (a.AppointmentDate.Date == localDate && a.StartTime > localTime)))
+            .Select(a => new { a.AppointmentDate, a.StartTime, a.EndTime })
+            .ToListAsync();
+
+        if (appointments.Count == 0) return;
+
+        var schedules = await _context.DoctorAvailabilities.AsNoTracking()
+            .Where(slot => slot.DoctorProfileId == doctorId && slot.Id != changedSlotId)
+            .Select(slot => new
+            {
+                slot.DayOfWeek, slot.StartTime, slot.EndTime, slot.SlotDurationMinutes
+            })
+            .ToListAsync();
+
+        var remainingAvailability = schedules
+            .Select(schedule => new AvailabilityWindow(
+                schedule.DayOfWeek, schedule.StartTime, schedule.EndTime,
+                schedule.SlotDurationMinutes))
+            .ToList();
+        if (replacement != null)
+        {
+            remainingAvailability.Add(new AvailabilityWindow(
+                replacement.DayOfWeek, replacement.StartTime, replacement.EndTime,
+                replacement.SlotDurationMinutes));
+        }
+        var invalidatesBooking = AvailabilityCoverageRules.WouldInvalidateBooking(
+            appointments.Select(appointment => new AppointmentWindow(
+                appointment.AppointmentDate.DayOfWeek, appointment.StartTime, appointment.EndTime)),
+            remainingAvailability);
+
+        if (invalidatesBooking)
+            throw new ConflictException(
+                "This availability change would invalidate a future appointment. Reschedule or cancel that appointment first.");
     }
 
     private async Task<Dictionary<string, ApplicationUser>> LoadUsersAsync(IEnumerable<string> userIds)

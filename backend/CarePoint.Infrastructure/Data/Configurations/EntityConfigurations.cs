@@ -199,6 +199,7 @@ public class MedicalDocumentConfiguration : IEntityTypeConfiguration<MedicalDocu
         builder.HasKey(md => md.Id);
         builder.Property(md => md.FileName).IsRequired().HasMaxLength(500);
         builder.Property(md => md.FileUrl).IsRequired().HasMaxLength(1000);
+        builder.Property(md => md.ContentType).IsRequired().HasMaxLength(100);
         builder.Property(md => md.DocumentType).HasMaxLength(100);
 
         builder.HasOne(md => md.PatientProfile)
@@ -232,6 +233,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.HasKey(rt => rt.Id);
         builder.HasIndex(rt => rt.TokenHash).IsUnique();
         builder.HasIndex(rt => rt.UserId);
+        builder.HasIndex(rt => rt.FamilyId);
         builder.Property(rt => rt.TokenHash).HasColumnName("Token").IsRequired().HasMaxLength(64);
         builder.Property(rt => rt.ReplacedByTokenHash).HasColumnName("ReplacedByToken").HasMaxLength(64);
         builder.Property(rt => rt.CreatedByIp).HasMaxLength(50);

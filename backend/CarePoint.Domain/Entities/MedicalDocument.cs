@@ -20,6 +20,7 @@ public class MedicalDocument : BaseEntity
     public string UploadedByUserId { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string FileUrl { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "application/octet-stream";
     public string? DocumentType { get; set; }
     public long FileSizeBytes { get; set; }
 }

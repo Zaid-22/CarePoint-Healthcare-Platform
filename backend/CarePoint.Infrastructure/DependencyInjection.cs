@@ -62,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<ISpecialtyService, SpecialtyService>();
         services.AddScoped<IClinicService, ClinicService>();
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddSingleton<IMedicalDocumentStorage, LocalMedicalDocumentStorage>();
 
         return services;
     }

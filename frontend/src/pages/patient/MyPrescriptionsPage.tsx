@@ -3,6 +3,7 @@ import api from '../../api/client';
 import type { PrescriptionDto, ApiResponse } from '../../types';
 import { PillIcon, DoctorIcon, CalendarIcon, SearchIcon, ClockIcon, InfoIcon, HourglassIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 20;
 
@@ -13,26 +14,33 @@ export default function MyPrescriptionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [skip, setSkip] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const debouncedSearch = useDebouncedValue(searchQuery);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function fetchPrescriptions() {
       try {
         setLoading(true);
         const params = new URLSearchParams({
-          skip: String(skip), take: String(PAGE_SIZE), search: searchQuery,
+          skip: String(skip), take: String(PAGE_SIZE), search: debouncedSearch,
         });
-        const res = await api.get<ApiResponse<PrescriptionDto[]>>(`/prescriptions/my-prescriptions?${params}`);
+        const res = await api.get<ApiResponse<PrescriptionDto[]>>(`/prescriptions/my-prescriptions?${params}`, {
+          signal: controller.signal,
+        });
         setPrescriptions(res.data.data || []);
         setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
+        setError(null);
       } catch (err: any) {
+        if (controller.signal.aborted) return;
         console.error('Failed to load prescriptions', err);
         setError(err.response?.data?.message || 'Failed to load digital prescriptions.');
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchPrescriptions();
-  }, [searchQuery, skip]);
+    return () => controller.abort();
+  }, [debouncedSearch, skip]);
 
   const filtered = prescriptions;
 

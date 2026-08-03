@@ -31,7 +31,8 @@ public interface IDoctorService
     Task DeleteAsync(Guid id);
     Task<DoctorDto> ApproveAsync(Guid id);
     Task<DoctorDto> RejectAsync(Guid id);
-    Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(Guid doctorId);
+    Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(
+        Guid doctorId, string? requesterUserId = null, string? requesterRole = null);
     Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, string userId, CreateAvailabilityDto dto);
     Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid slotId, string userId, CreateAvailabilityDto dto);
     Task DeleteAvailabilityAsync(Guid doctorId, Guid slotId, string userId);
@@ -112,8 +113,18 @@ public interface IClinicService
 public interface IDocumentService
 {
     Task<MedicalDocumentDto> GetByIdAsync(Guid id, string userId, string role);
-    Task<IReadOnlyList<MedicalDocumentDto>> GetByPatientIdAsync(Guid patientId, string userId, string role);
+    Task<PagedResult<MedicalDocumentDto>> GetByPatientIdAsync(
+        Guid patientId, string userId, string role, int skip = 0, int take = 50);
+    Task<MedicalDocumentContent> GetContentAsync(Guid id, string userId, string role);
     Task<MedicalDocumentDto> UploadAsync(Guid patientProfileId, string userId, string fileName,
-        string fileUrl, string? documentType, long fileSizeBytes, Guid? appointmentId = null);
+        Stream content, string contentType, string? documentType, long fileSizeBytes,
+        Guid? appointmentId = null);
     Task DeleteAsync(Guid id, string userId);
+}
+
+public interface IMedicalDocumentStorage
+{
+    Task<string> SaveAsync(Stream content, string fileExtension, CancellationToken cancellationToken = default);
+    Task<Stream> OpenReadAsync(string storageKey, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default);
 }

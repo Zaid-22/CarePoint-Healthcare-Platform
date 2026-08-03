@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import type { DoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } from '../../types';
 import { getClinicDateString } from '../../utils/clinicTime';
@@ -20,6 +20,7 @@ export default function FindDoctors() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [skip, setSkip] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const slotRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
     async function loadSpecialties() {
@@ -34,22 +35,27 @@ export default function FindDoctors() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function loadDoctors() {
       try {
         setLoading(true);
         const specialtyName = specialties.find((specialty) => specialty.id === selectedSpecialty)?.name;
         const params = new URLSearchParams({ skip: String(skip), take: String(PAGE_SIZE) });
         if (specialtyName) params.set('specialty', specialtyName);
-        const docRes = await api.get<ApiResponse<DoctorDto[]>>(`/doctors?${params.toString()}`);
+        const docRes = await api.get<ApiResponse<DoctorDto[]>>(`/doctors?${params.toString()}`, {
+          signal: controller.signal,
+        });
         setDoctors(docRes.data.data || []);
         setTotalCount(docRes.data.pagination?.totalCount ?? docRes.data.data?.length ?? 0);
       } catch (e) {
+        if (controller.signal.aborted) return;
         console.error('Failed to load doctors', e);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     loadDoctors();
+    return () => controller.abort();
   }, [selectedSpecialty, skip, specialties]);
 
   const handleSelectDoctor = async (doc: DoctorDto) => {
@@ -61,12 +67,17 @@ export default function FindDoctors() {
   };
 
   const fetchSlots = async (doctorId: string, date: string) => {
+    slotRequest.current?.abort();
+    const controller = new AbortController();
+    slotRequest.current = controller;
     try {
       const res = await api.get<ApiResponse<AvailableSlotDto[]>>(
-        `/doctors/${doctorId}/slots?date=${date}`
+        `/doctors/${doctorId}/slots?date=${date}`,
+        { signal: controller.signal },
       );
       setSlots(res.data.data || []);
     } catch (e) {
+      if (controller.signal.aborted) return;
       console.error('Failed to fetch slots', e);
       setSlots([]);
     }

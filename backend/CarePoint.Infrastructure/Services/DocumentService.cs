@@ -6,6 +6,7 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using CarePoint.Application.DTOs.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -13,11 +14,14 @@ public class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IMedicalDocumentStorage _storage;
 
-    public DocumentService(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public DocumentService(ApplicationDbContext context, UserManager<ApplicationUser> userManager,
+        IMedicalDocumentStorage storage)
     {
         _context = context;
         _userManager = userManager;
+        _storage = storage;
     }
 
     public async Task<MedicalDocumentDto> GetByIdAsync(Guid id, string userId, string role)
@@ -31,8 +35,10 @@ public class DocumentService : IDocumentService
         return MapToDto(doc);
     }
 
-    public async Task<IReadOnlyList<MedicalDocumentDto>> GetByPatientIdAsync(Guid patientId, string userId, string role)
+    public async Task<PagedResult<MedicalDocumentDto>> GetByPatientIdAsync(
+        Guid patientId, string userId, string role, int skip = 0, int take = 50)
     {
+        (skip, take) = Pagination.Normalize(skip, take);
         var patient = await _context.PatientProfiles.FindAsync(patientId)
             ?? throw new NotFoundException("Patient", patientId);
 
@@ -55,15 +61,39 @@ public class DocumentService : IDocumentService
             throw new ForbiddenException();
         }
 
+        var totalCount = await query.CountAsync();
         var docs = await query
             .OrderByDescending(d => d.CreatedAt)
-            .Take(100)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync();
-        return docs.Select(MapToDto).ToList();
+        return PagedResult<MedicalDocumentDto>.Create(
+            docs.Select(MapToDto).ToList(), totalCount, skip, take);
+    }
+
+    public async Task<MedicalDocumentContent> GetContentAsync(Guid id, string userId, string role)
+    {
+        var doc = await _context.MedicalDocuments
+            .Include(d => d.PatientProfile)
+            .Include(d => d.Appointment).ThenInclude(a => a!.DoctorProfile)
+            .FirstOrDefaultAsync(d => d.Id == id)
+            ?? throw new NotFoundException("Document", id);
+        EnsureCanRead(doc, userId, role);
+        Stream stream;
+        try
+        {
+            stream = await _storage.OpenReadAsync(doc.FileUrl);
+        }
+        catch (FileNotFoundException)
+        {
+            throw new NotFoundException("Document content", id);
+        }
+        return new MedicalDocumentContent(stream, doc.ContentType, doc.FileName);
     }
 
     public async Task<MedicalDocumentDto> UploadAsync(Guid patientProfileId, string userId, string fileName,
-        string fileUrl, string? documentType, long fileSizeBytes, Guid? appointmentId = null)
+        Stream content, string contentType, string? documentType, long fileSizeBytes,
+        Guid? appointmentId = null)
     {
         var patient = await _context.PatientProfiles.FindAsync(patientProfileId)
             ?? throw new NotFoundException("Patient", patientProfileId);
@@ -83,18 +113,28 @@ public class DocumentService : IDocumentService
         if (!isPatientOwner && !isTreatingDoctor && !await IsAdminAsync(userId))
             throw new ForbiddenException("You cannot upload documents for this patient.");
 
+        var storageKey = await _storage.SaveAsync(content, Path.GetExtension(fileName));
         var doc = new MedicalDocument
         {
             PatientProfileId = patientProfileId,
             UploadedByUserId = userId,
             FileName = fileName,
-            FileUrl = fileUrl,
+            FileUrl = storageKey,
+            ContentType = contentType,
             DocumentType = documentType,
             FileSizeBytes = fileSizeBytes,
             AppointmentId = appointmentId
         };
-        _context.MedicalDocuments.Add(doc);
-        await _context.SaveChangesAsync();
+        try
+        {
+            _context.MedicalDocuments.Add(doc);
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            await _storage.DeleteAsync(storageKey);
+            throw;
+        }
         return MapToDto(doc);
     }
 
@@ -108,8 +148,10 @@ public class DocumentService : IDocumentService
         if (doc.UploadedByUserId != userId && doc.PatientProfile.UserId != userId && !await IsAdminAsync(userId))
             throw new ForbiddenException("You cannot delete this document.");
 
+        var storageKey = doc.FileUrl;
         _context.MedicalDocuments.Remove(doc);
         await _context.SaveChangesAsync();
+        await _storage.DeleteAsync(storageKey);
     }
 
     private static MedicalDocumentDto MapToDto(MedicalDocument d) => new()
@@ -118,7 +160,8 @@ public class DocumentService : IDocumentService
         PatientProfileId = d.PatientProfileId,
         AppointmentId = d.AppointmentId,
         FileName = d.FileName,
-        FileUrl = d.FileUrl,
+        DownloadUrl = $"/api/documents/{d.Id}/content",
+        ContentType = d.ContentType,
         DocumentType = d.DocumentType,
         FileSizeBytes = d.FileSizeBytes,
         CreatedAt = d.CreatedAt

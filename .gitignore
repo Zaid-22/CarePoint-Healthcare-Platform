@@ -31,6 +31,7 @@ appsettings.*.local.json
 # Logs
 logs/
 *.log
+**/App_Data/
 
 # Skills & Agents
 skills/

@@ -75,11 +75,14 @@ public class MedicalDocumentDto
     public Guid PatientProfileId { get; set; }
     public Guid? AppointmentId { get; set; }
     public string FileName { get; set; } = string.Empty;
-    public string FileUrl { get; set; } = string.Empty;
+    public string DownloadUrl { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "application/octet-stream";
     public string? DocumentType { get; set; }
     public long FileSizeBytes { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+public sealed record MedicalDocumentContent(Stream Content, string ContentType, string FileName);
 
 public class NotificationDto
 {

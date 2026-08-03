@@ -105,6 +105,20 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Deployment command: migrate and seed only essential reference data, then exit.
+// Keeping this explicit avoids coupling API liveness to database availability.
+if (CarePoint.Infrastructure.Data.DatabaseInitializationCommand.IsRequested(args))
+{
+    using var initializationScope = app.Services.CreateScope();
+    var initializationContext = initializationScope.ServiceProvider
+        .GetRequiredService<CarePoint.Infrastructure.Data.ApplicationDbContext>();
+    await initializationContext.Database.MigrateAsync();
+    await CarePoint.Infrastructure.Data.DatabaseSeeder.SeedAsync(
+        initializationScope.ServiceProvider, seedDemoData: false);
+    Log.Information("Database migrations and essential reference-data seeding completed.");
+    return;
+}
+
 // --- Middleware Pipeline ---
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseForwardedHeaders();

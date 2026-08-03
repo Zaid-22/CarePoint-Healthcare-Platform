@@ -3,6 +3,7 @@ import api from '../../api/client';
 import type { MedicalRecordDto, ApiResponse } from '../../types';
 import { FileTextIcon, SearchIcon, DoctorIcon, CalendarIcon, PillIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 20;
 
@@ -13,26 +14,33 @@ export default function MedicalHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [skip, setSkip] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const debouncedSearch = useDebouncedValue(searchQuery);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function fetchHistory() {
       try {
         setLoading(true);
         const params = new URLSearchParams({
-          skip: String(skip), take: String(PAGE_SIZE), search: searchQuery,
+          skip: String(skip), take: String(PAGE_SIZE), search: debouncedSearch,
         });
-        const res = await api.get<ApiResponse<MedicalRecordDto[]>>(`/medicalrecords/my-history?${params}`);
+        const res = await api.get<ApiResponse<MedicalRecordDto[]>>(`/medicalrecords/my-history?${params}`, {
+          signal: controller.signal,
+        });
         setRecords(res.data.data || []);
         setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
+        setError(null);
       } catch (err: any) {
+        if (controller.signal.aborted) return;
         console.error('Failed to load medical history', err);
         setError(err.response?.data?.message || 'Failed to load medical records.');
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchHistory();
-  }, [searchQuery, skip]);
+    return () => controller.abort();
+  }, [debouncedSearch, skip]);
 
   const filteredRecords = records;
 

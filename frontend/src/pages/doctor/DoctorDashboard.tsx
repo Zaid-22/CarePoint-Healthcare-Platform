@@ -18,7 +18,7 @@ export default function DoctorDashboard() {
       try {
         const clinicDate = getClinicDateString();
         const [appsRes, summaryRes, profileRes] = await Promise.all([
-          api.get<ApiResponse<AppointmentDto[]>>(`/appointments/my-appointments?date=${clinicDate}&take=100`),
+          api.get<ApiResponse<AppointmentDto[]>>(`/appointments/my-appointments?statusGroup=active&date=${clinicDate}&take=100`),
           api.get<ApiResponse<AppointmentSummaryDto>>('/appointments/summary'),
           api.get<ApiResponse<DoctorDto>>('/doctors/me').catch(() => null),
         ]);

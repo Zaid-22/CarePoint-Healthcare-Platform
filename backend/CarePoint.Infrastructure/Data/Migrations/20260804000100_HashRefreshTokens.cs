@@ -14,11 +14,11 @@ public partial class HashRefreshTokens : Migration
         migrationBuilder.Sql(
             """
             UPDATE [RefreshTokens]
-            SET [Token] = CONVERT(varchar(64), HASHBYTES('SHA2_256', [Token]), 2)
+            SET [Token] = CONVERT(varchar(64), HASHBYTES('SHA2_256', CONVERT(varchar(max), [Token])), 2)
             WHERE LEN([Token]) <> 64 OR [Token] LIKE '%[^0-9A-Fa-f]%';
 
             UPDATE [RefreshTokens]
-            SET [ReplacedByToken] = CONVERT(varchar(64), HASHBYTES('SHA2_256', [ReplacedByToken]), 2)
+            SET [ReplacedByToken] = CONVERT(varchar(64), HASHBYTES('SHA2_256', CONVERT(varchar(max), [ReplacedByToken])), 2)
             WHERE [ReplacedByToken] IS NOT NULL
               AND (LEN([ReplacedByToken]) <> 64 OR [ReplacedByToken] LIKE '%[^0-9A-Fa-f]%');
             """);

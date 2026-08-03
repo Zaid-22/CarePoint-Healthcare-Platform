@@ -3,13 +3,14 @@ import api from '../../api/client';
 import type { AppointmentDto, MedicalRecordDto, ApiResponse } from '../../types';
 import { FileTextIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
+import MedicalDocumentsPanel from '../../components/common/MedicalDocumentsPanel';
 
 const PAGE_SIZE = 20;
 
 export default function DoctorAppointments() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<'record' | 'prescription' | 'history' | null>(null);
+  const [activeModal, setActiveModal] = useState<'record' | 'prescription' | 'history' | 'documents' | null>(null);
   const [selectedApp, setSelectedApp] = useState<AppointmentDto | null>(null);
   const [skip, setSkip] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -166,6 +167,13 @@ export default function DoctorAppointments() {
                   >
                     <FileTextIcon size={16} /> Patient History
                   </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => { setSelectedApp(app); setActiveModal('documents'); }}
+                    style={{ fontSize: '0.875rem', gap: 6 }}
+                  >
+                    <FileTextIcon size={16} /> Documents
+                  </button>
 
                   {app.status === 0 && (
                     <button className="btn btn-primary" onClick={() => handleUpdateStatus(app.id, 1)}>
@@ -204,13 +212,15 @@ export default function DoctorAppointments() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         }}>
-          <div className="card page-enter" style={{ width: activeModal === 'history' ? 640 : 480, padding: 32, background: 'var(--bg-surface)', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div className="card page-enter" style={{ width: activeModal === 'history' || activeModal === 'documents' ? 720 : 480, padding: 32, background: 'var(--bg-surface)', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700 }}>
                 {activeModal === 'record'
                   ? 'New Medical Record'
                   : activeModal === 'prescription'
                   ? 'Issue Prescription'
+                  : activeModal === 'documents'
+                  ? `Clinical Documents: ${selectedApp.patientName}`
                   : `Medical History: ${selectedApp.patientName}`}
               </h2>
               <button className="btn btn-ghost" onClick={() => setActiveModal(null)}>✕</button>
@@ -254,6 +264,12 @@ export default function DoctorAppointments() {
                   Issue Prescription
                 </button>
               </div>
+            ) : activeModal === 'documents' ? (
+              <MedicalDocumentsPanel
+                patientProfileId={selectedApp.patientProfileId}
+                appointmentId={selectedApp.id}
+                compact
+              />
             ) : (
               /* Patient History Modal */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -14,6 +14,7 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using System.Data;
+using CarePoint.Domain.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -181,20 +182,34 @@ public class AuthService : IAuthService
         await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         var storedToken = await _context.RefreshTokens
             .AsNoTracking()
-            .Where(rt => rt.TokenHash == HashRefreshToken(dto.RefreshToken))
-            .Select(rt => new { rt.Id, rt.UserId })
+            .Where(rt => rt.TokenHash == RefreshTokenSecurity.Hash(dto.RefreshToken))
+            .Select(rt => new { rt.Id, rt.UserId, rt.FamilyId, rt.IsRevoked, rt.ExpiresAt })
             .FirstOrDefaultAsync()
             ?? throw new BadRequestException("Invalid refresh token.");
 
         var revokedAt = DateTime.UtcNow;
+        if (storedToken.IsRevoked)
+        {
+            await RevokeTokenFamilyAsync(storedToken.FamilyId, revokedAt);
+            await transaction.CommitAsync();
+            throw new BadRequestException("Refresh token reuse was detected. This session has been revoked.");
+        }
+
+        if (storedToken.ExpiresAt < revokedAt)
+            throw new BadRequestException("Refresh token has expired.");
+
         var affected = await _context.RefreshTokens
             .Where(rt => rt.Id == storedToken.Id && !rt.IsRevoked && rt.ExpiresAt >= revokedAt)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(rt => rt.IsRevoked, true)
                 .SetProperty(rt => rt.RevokedAt, revokedAt));
 
-        if (affected != 1)
-            throw new BadRequestException("Refresh token has expired or been revoked.");
+        if (RefreshTokenSecurity.IsReuseDetected(isAlreadyRevoked: false, affected))
+        {
+            await RevokeTokenFamilyAsync(storedToken.FamilyId, revokedAt);
+            await transaction.CommitAsync();
+            throw new BadRequestException("Refresh token reuse was detected. This session has been revoked.");
+        }
 
         var user = await _userManager.FindByIdAsync(storedToken.UserId)
             ?? throw new NotFoundException("User", storedToken.UserId);
@@ -203,7 +218,7 @@ public class AuthService : IAuthService
         var role = roles.FirstOrDefault() ?? "Patient";
 
         var accessToken = await GenerateAccessTokenAsync(user);
-        var newRefreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id);
+        var newRefreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id, storedToken.FamilyId);
 
         await _context.RefreshTokens
             .Where(rt => rt.Id == storedToken.Id)
@@ -229,7 +244,7 @@ public class AuthService : IAuthService
     {
         var revokedAt = DateTime.UtcNow;
         await _context.RefreshTokens
-            .Where(rt => rt.TokenHash == HashRefreshToken(refreshToken) && !rt.IsRevoked)
+            .Where(rt => rt.TokenHash == RefreshTokenSecurity.Hash(refreshToken) && !rt.IsRevoked)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(rt => rt.IsRevoked, true)
                 .SetProperty(rt => rt.RevokedAt, revokedAt));
@@ -331,13 +346,15 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private async Task<GeneratedRefreshToken> GenerateAndStoreRefreshTokenAsync(string userId)
+    private async Task<GeneratedRefreshToken> GenerateAndStoreRefreshTokenAsync(
+        string userId, Guid? familyId = null)
     {
         var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         var refreshToken = new RefreshToken
         {
             UserId = userId,
-            TokenHash = HashRefreshToken(rawToken),
+            FamilyId = familyId ?? Guid.NewGuid(),
+            TokenHash = RefreshTokenSecurity.Hash(rawToken),
             ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays)
         };
 
@@ -357,14 +374,20 @@ public class AuthService : IAuthService
                 .SetProperty(token => token.RevokedAt, revokedAt));
     }
 
+    private async Task RevokeTokenFamilyAsync(Guid familyId, DateTime revokedAt)
+    {
+        await _context.RefreshTokens
+            .Where(token => token.FamilyId == familyId && !token.IsRevoked)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(token => token.IsRevoked, true)
+                .SetProperty(token => token.RevokedAt, revokedAt));
+    }
+
     private string CreatePasswordResetUrl(string email, string token)
     {
         var separator = _emailSettings.PasswordResetUrl.Contains('?') ? '&' : '?';
         return $"{_emailSettings.PasswordResetUrl}{separator}email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
     }
-
-    private static string HashRefreshToken(string token) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private sealed record GeneratedRefreshToken(RefreshToken Entity, string RawToken);
 }
