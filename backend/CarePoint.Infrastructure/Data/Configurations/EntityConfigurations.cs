@@ -230,10 +230,10 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
     public void Configure(EntityTypeBuilder<RefreshToken> builder)
     {
         builder.HasKey(rt => rt.Id);
-        builder.HasIndex(rt => rt.Token).IsUnique();
+        builder.HasIndex(rt => rt.TokenHash).IsUnique();
         builder.HasIndex(rt => rt.UserId);
-        builder.Property(rt => rt.Token).IsRequired().HasMaxLength(500);
-        builder.Property(rt => rt.ReplacedByToken).HasMaxLength(500);
+        builder.Property(rt => rt.TokenHash).HasColumnName("Token").IsRequired().HasMaxLength(64);
+        builder.Property(rt => rt.ReplacedByTokenHash).HasColumnName("ReplacedByToken").HasMaxLength(64);
         builder.Property(rt => rt.CreatedByIp).HasMaxLength(50);
     }
 }

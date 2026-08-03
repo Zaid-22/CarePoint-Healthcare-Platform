@@ -19,6 +19,14 @@ public class DoctorDto
     public List<ClinicDto> Clinics { get; set; } = new();
 }
 
+public sealed class DoctorAdminSummaryDto
+{
+    public int TotalRegistered { get; set; }
+    public int PendingCount { get; set; }
+    public int ApprovedCount { get; set; }
+    public int RejectedCount { get; set; }
+}
+
 public class CreateDoctorDto
 {
     public string? Bio { get; set; }

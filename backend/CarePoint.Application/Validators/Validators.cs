@@ -70,7 +70,7 @@ public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentDto
     public CreateAppointmentValidator()
     {
         RuleFor(x => x.DoctorProfileId).NotEmpty();
-        RuleFor(x => x.AppointmentDate).GreaterThanOrEqualTo(DateTime.UtcNow.Date).WithMessage("Cannot book appointments in the past.");
+        RuleFor(x => x.AppointmentDate).NotEmpty();
         RuleFor(x => x.StartTime).LessThan(x => x.EndTime).WithMessage("Start time must be before end time.");
     }
 }
@@ -79,8 +79,7 @@ public class RescheduleAppointmentValidator : AbstractValidator<RescheduleAppoin
 {
     public RescheduleAppointmentValidator()
     {
-        RuleFor(x => x.NewAppointmentDate).GreaterThanOrEqualTo(DateTime.UtcNow.Date)
-            .WithMessage("Cannot reschedule appointments into the past.");
+        RuleFor(x => x.NewAppointmentDate).NotEmpty();
         RuleFor(x => x.NewStartTime).LessThan(x => x.NewEndTime)
             .WithMessage("Start time must be before end time.");
     }

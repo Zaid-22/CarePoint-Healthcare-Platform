@@ -9,6 +9,7 @@ using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using System.Data;
 using CarePoint.Domain.Common;
+using CarePoint.Application.DTOs.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -17,13 +18,15 @@ public class AppointmentService : IAppointmentService
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationService _notificationService;
+    private readonly IClinicClock _clinicClock;
 
     public AppointmentService(ApplicationDbContext context, UserManager<ApplicationUser> userManager,
-        INotificationService notificationService)
+        INotificationService notificationService, IClinicClock clinicClock)
     {
         _context = context;
         _userManager = userManager;
         _notificationService = notificationService;
+        _clinicClock = clinicClock;
     }
 
     public async Task<AppointmentDto> GetByIdAsync(Guid id, string userId, string role)
@@ -38,22 +41,23 @@ public class AppointmentService : IAppointmentService
         return await MapToDtoAsync(appointment);
     }
 
-    public async Task<IReadOnlyList<AppointmentDto>> GetAllAsync(string userId, string role, int skip = 0, int take = 50)
+    public async Task<PagedResult<AppointmentDto>> GetAllAsync(string userId, string role, int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
+        (skip, take) = Pagination.Normalize(skip, take);
         IQueryable<Appointment> query = _context.Appointments.AsNoTracking();
 
         if (role == "Patient")
         {
             var patient = await _context.PatientProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId);
-            if (patient == null) return Array.Empty<AppointmentDto>();
+            if (patient == null)
+                return PagedResult<AppointmentDto>.Create(Array.Empty<AppointmentDto>(), 0, skip, take);
             query = query.Where(a => a.PatientProfileId == patient.Id);
         }
         else if (role == "Doctor")
         {
             var doctor = await _context.DoctorProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor == null) return Array.Empty<AppointmentDto>();
+            if (doctor == null)
+                return PagedResult<AppointmentDto>.Create(Array.Empty<AppointmentDto>(), 0, skip, take);
             query = query.Where(a => a.DoctorProfileId == doctor.Id);
         }
         else if (role != "Admin")
@@ -61,7 +65,8 @@ public class AppointmentService : IAppointmentService
             throw new ForbiddenException();
         }
 
-        return await query
+        var totalCount = await query.CountAsync();
+        var items = await query
             .OrderByDescending(a => a.AppointmentDate)
             .ThenByDescending(a => a.StartTime)
             .Skip(skip)
@@ -84,6 +89,7 @@ public class AppointmentService : IAppointmentService
                 CreatedAt = a.CreatedAt
             })
             .ToListAsync();
+        return PagedResult<AppointmentDto>.Create(items, totalCount, skip, take);
     }
 
     public async Task<AppointmentDto> CreateAsync(string userId, CreateAppointmentDto dto)
@@ -295,14 +301,12 @@ public class AppointmentService : IAppointmentService
             throw new ConflictException("This time slot is already booked. Please select a different time slot.");
     }
 
-    private static void ValidateDateAndTime(DateTime appointmentDate, TimeOnly startTime, TimeOnly endTime)
+    private void ValidateDateAndTime(DateTime appointmentDate, TimeOnly startTime, TimeOnly endTime)
     {
         if (startTime >= endTime)
             throw new BadRequestException("Start time must be before end time.");
 
-        var utcNow = DateTime.UtcNow;
-        if (appointmentDate.Date < utcNow.Date ||
-            (appointmentDate.Date == utcNow.Date && startTime <= TimeOnly.FromDateTime(utcNow)))
+        if (!AppointmentSchedulingRules.IsInFuture(_clinicClock.LocalNow, appointmentDate, startTime))
             throw new BadRequestException("Appointments must be scheduled in the future.");
     }
 

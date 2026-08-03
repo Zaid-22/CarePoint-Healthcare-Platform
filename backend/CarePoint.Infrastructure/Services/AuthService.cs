@@ -126,7 +126,7 @@ public class AuthService : IAuthService
             Role = role,
             Roles = new List<string> { role },
             AccessToken = accessToken,
-            RefreshToken = refreshToken.Token,
+            RefreshToken = refreshToken.RawToken,
             AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
         };
     }
@@ -164,7 +164,7 @@ public class AuthService : IAuthService
             Role = role,
             Roles = roles.ToList(),
             AccessToken = accessToken,
-            RefreshToken = refreshToken.Token,
+            RefreshToken = refreshToken.RawToken,
             AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
         };
     }
@@ -174,7 +174,7 @@ public class AuthService : IAuthService
         await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         var storedToken = await _context.RefreshTokens
             .AsNoTracking()
-            .Where(rt => rt.Token == dto.RefreshToken)
+            .Where(rt => rt.TokenHash == HashRefreshToken(dto.RefreshToken))
             .Select(rt => new { rt.Id, rt.UserId })
             .FirstOrDefaultAsync()
             ?? throw new BadRequestException("Invalid refresh token.");
@@ -200,7 +200,8 @@ public class AuthService : IAuthService
 
         await _context.RefreshTokens
             .Where(rt => rt.Id == storedToken.Id)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(rt => rt.ReplacedByToken, newRefreshToken.Token));
+            .ExecuteUpdateAsync(setters => setters.SetProperty(
+                rt => rt.ReplacedByTokenHash, newRefreshToken.Entity.TokenHash));
         await transaction.CommitAsync();
 
         return new AuthResponseDto
@@ -212,7 +213,7 @@ public class AuthService : IAuthService
             Role = role,
             Roles = roles.ToList(),
             AccessToken = accessToken,
-            RefreshToken = newRefreshToken.Token,
+            RefreshToken = newRefreshToken.RawToken,
             AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
         };
     }
@@ -221,7 +222,7 @@ public class AuthService : IAuthService
     {
         var revokedAt = DateTime.UtcNow;
         await _context.RefreshTokens
-            .Where(rt => rt.Token == refreshToken && !rt.IsRevoked)
+            .Where(rt => rt.TokenHash == HashRefreshToken(refreshToken) && !rt.IsRevoked)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(rt => rt.IsRevoked, true)
                 .SetProperty(rt => rt.RevokedAt, revokedAt));
@@ -319,19 +320,20 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private async Task<RefreshToken> GenerateAndStoreRefreshTokenAsync(string userId)
+    private async Task<GeneratedRefreshToken> GenerateAndStoreRefreshTokenAsync(string userId)
     {
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         var refreshToken = new RefreshToken
         {
             UserId = userId,
-            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            TokenHash = HashRefreshToken(rawToken),
             ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays)
         };
 
         _context.RefreshTokens.Add(refreshToken);
         await _context.SaveChangesAsync();
 
-        return refreshToken;
+        return new GeneratedRefreshToken(refreshToken, rawToken);
     }
 
     private async Task RevokeActiveRefreshTokensAsync(string userId)
@@ -349,4 +351,9 @@ public class AuthService : IAuthService
         var separator = _emailSettings.PasswordResetUrl.Contains('?') ? '&' : '?';
         return $"{_emailSettings.PasswordResetUrl}{separator}email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
     }
+
+    private static string HashRefreshToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private sealed record GeneratedRefreshToken(RefreshToken Entity, string RawToken);
 }

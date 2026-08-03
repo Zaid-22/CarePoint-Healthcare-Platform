@@ -6,6 +6,7 @@ using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
+using CarePoint.Application.DTOs.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -31,11 +32,10 @@ public class MedicalRecordService : IMedicalRecordService
         return await MapToDtoAsync(record);
     }
 
-    public async Task<IReadOnlyList<MedicalRecordDto>> GetByPatientIdAsync(
+    public async Task<PagedResult<MedicalRecordDto>> GetByPatientIdAsync(
         Guid patientId, string userId, string role, int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
+        (skip, take) = Pagination.Normalize(skip, take);
         var doctorId = await GetDoctorIdForPatientHistoryAsync(patientId, userId, role);
         var query = _context.MedicalRecords
             .Include(r => r.Appointment).ThenInclude(a => a.DoctorProfile)
@@ -47,15 +47,19 @@ public class MedicalRecordService : IMedicalRecordService
         if (doctorId.HasValue)
             query = query.Where(r => r.Appointment.DoctorProfileId == doctorId.Value);
 
+        var totalCount = await query.CountAsync();
         var records = await query.OrderByDescending(r => r.CreatedAt)
             .Skip(skip).Take(take).ToListAsync();
-        return await MapManyToDtoAsync(records);
+        return PagedResult<MedicalRecordDto>.Create(
+            await MapManyToDtoAsync(records), totalCount, skip, take);
     }
 
-    public async Task<IReadOnlyList<MedicalRecordDto>> GetMyHistoryAsync(string userId, int skip = 0, int take = 50)
+    public async Task<PagedResult<MedicalRecordDto>> GetMyHistoryAsync(string userId, int skip = 0, int take = 50)
     {
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
-        if (patient == null) return new List<MedicalRecordDto>();
+        (skip, take) = Pagination.Normalize(skip, take);
+        if (patient == null)
+            return PagedResult<MedicalRecordDto>.Create(Array.Empty<MedicalRecordDto>(), 0, skip, take);
         return await GetByPatientIdAsync(patient.Id, userId, "Patient", skip, take);
     }
 

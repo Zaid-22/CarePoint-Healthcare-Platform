@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { DoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } from '../../types';
+import { getClinicDateString } from '../../utils/clinicTime';
 
 export default function FindDoctors() {
   const [doctors, setDoctors] = useState<DoctorDto[]>([]);
@@ -9,7 +10,7 @@ export default function FindDoctors() {
   const [loading, setLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorDto | null>(null);
   const [slots, setSlots] = useState<AvailableSlotDto[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(getClinicDateString());
   const [bookingSlot, setBookingSlot] = useState<AvailableSlotDto | null>(null);
   const [notes, setNotes] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
@@ -234,7 +235,7 @@ export default function FindDoctors() {
                 type="date"
                 className="form-input"
                 value={selectedDate}
-                min={new Date().toISOString().split('T')[0]}
+                min={getClinicDateString()}
                 onChange={(e) => {
                   setSelectedDate(e.target.value);
                   fetchSlots(selectedDoctor.id, e.target.value);

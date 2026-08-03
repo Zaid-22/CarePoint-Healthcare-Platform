@@ -7,6 +7,7 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using CarePoint.Application.DTOs.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -15,12 +16,15 @@ public class DoctorService : IDoctorService
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationService _notificationService;
+    private readonly IClinicClock _clinicClock;
 
-    public DoctorService(ApplicationDbContext context, UserManager<ApplicationUser> userManager, INotificationService notificationService)
+    public DoctorService(ApplicationDbContext context, UserManager<ApplicationUser> userManager,
+        INotificationService notificationService, IClinicClock clinicClock)
     {
         _context = context;
         _userManager = userManager;
         _notificationService = notificationService;
+        _clinicClock = clinicClock;
     }
 
     public async Task<DoctorDto> GetByIdAsync(Guid id)
@@ -37,11 +41,10 @@ public class DoctorService : IDoctorService
         return MapToDto(doctor, user);
     }
 
-    public async Task<IReadOnlyList<DoctorDto>> GetAllAsync(
+    public async Task<PagedResult<DoctorDto>> GetAllAsync(
         string? specialtyFilter = null, string? nameFilter = null, int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
+        (skip, take) = Pagination.Normalize(skip, take);
         var query = _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
@@ -62,6 +65,7 @@ public class DoctorService : IDoctorService
                 user.Id == d.UserId && (user.FirstName + " " + user.LastName).Contains(nameFilter)));
         }
 
+        var totalCount = await query.CountAsync();
         var doctors = await query
             .OrderByDescending(d => d.CreatedAt)
             .Skip(skip)
@@ -75,18 +79,23 @@ public class DoctorService : IDoctorService
             if (users.TryGetValue(doctor.UserId, out var user)) result.Add(MapToDto(doctor, user));
         }
 
-        return result;
+        return PagedResult<DoctorDto>.Create(result, totalCount, skip, take);
     }
 
-    public async Task<IReadOnlyList<DoctorDto>> GetAllForAdminAsync(int skip = 0, int take = 50)
+    public async Task<PagedResult<DoctorDto>> GetAllForAdminAsync(
+        DoctorApprovalStatus? status = null, int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
-        var doctors = await _context.DoctorProfiles
+        (skip, take) = Pagination.Normalize(skip, take);
+        var query = _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
             .AsNoTracking()
-            .AsSplitQuery()
+            .AsSplitQuery();
+        if (status.HasValue)
+            query = query.Where(doctor => doctor.ApprovalStatus == status.Value);
+
+        var totalCount = await query.CountAsync();
+        var doctors = await query
             .OrderByDescending(d => d.CreatedAt)
             .Skip(skip)
             .Take(take)
@@ -98,7 +107,24 @@ public class DoctorService : IDoctorService
         {
             if (users.TryGetValue(doctor.UserId, out var user)) result.Add(MapToDto(doctor, user));
         }
-        return result;
+        return PagedResult<DoctorDto>.Create(result, totalCount, skip, take);
+    }
+
+    public async Task<DoctorAdminSummaryDto> GetAdminSummaryAsync()
+    {
+        var counts = await _context.DoctorProfiles
+            .AsNoTracking()
+            .GroupBy(doctor => doctor.ApprovalStatus)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Status, item => item.Count);
+
+        return new DoctorAdminSummaryDto
+        {
+            TotalRegistered = counts.Values.Sum(),
+            PendingCount = counts.GetValueOrDefault(DoctorApprovalStatus.Pending),
+            ApprovedCount = counts.GetValueOrDefault(DoctorApprovalStatus.Approved),
+            RejectedCount = counts.GetValueOrDefault(DoctorApprovalStatus.Rejected)
+        };
     }
 
     public async Task<DoctorDto> GetProfileByUserIdAsync(string userId)
@@ -388,13 +414,14 @@ public class DoctorService : IDoctorService
             {
                 var slotEnd = current.AddMinutes(schedule.SlotDurationMinutes);
                 var isBooked = bookedSlots.Any(b => b.StartTime < slotEnd && b.EndTime > current);
+                var isElapsed = AppointmentSchedulingRules.IsElapsed(_clinicClock.LocalNow, date, current);
 
                 slots.Add(new AvailableSlotDto
                 {
                     Date = date.Date,
                     StartTime = current,
                     EndTime = slotEnd,
-                    IsAvailable = !isBooked
+                    IsAvailable = !isBooked && !isElapsed
                 });
 
                 current = slotEnd;

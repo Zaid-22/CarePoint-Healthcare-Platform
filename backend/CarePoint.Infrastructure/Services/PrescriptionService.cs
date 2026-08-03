@@ -4,6 +4,7 @@ using CarePoint.Application.Interfaces;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
+using CarePoint.Application.DTOs.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -23,42 +24,47 @@ public class PrescriptionService : IPrescriptionService
         return await MapToDtoAsync(rx);
     }
 
-    public async Task<IReadOnlyList<PrescriptionDto>> GetByAppointmentIdAsync(
+    public async Task<PagedResult<PrescriptionDto>> GetByAppointmentIdAsync(
         Guid appointmentId, string userId, string role, int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
+        (skip, take) = Pagination.Normalize(skip, take);
         var appointment = await _context.Appointments.FindAsync(appointmentId)
             ?? throw new NotFoundException("Appointment", appointmentId);
         await EnsureCanReadAppointmentAsync(appointment, userId, role);
 
-        var prescriptions = await _context.Prescriptions
+        var query = _context.Prescriptions
             .Include(p => p.Items)
             .AsNoTracking()
-            .Where(p => p.AppointmentId == appointmentId)
+            .Where(p => p.AppointmentId == appointmentId);
+        var totalCount = await query.CountAsync();
+        var prescriptions = await query
             .OrderByDescending(p => p.CreatedAt)
             .Skip(skip)
             .Take(take)
             .ToListAsync();
-        return await MapManyToDtoAsync(prescriptions);
+        return PagedResult<PrescriptionDto>.Create(
+            await MapManyToDtoAsync(prescriptions), totalCount, skip, take);
     }
 
-    public async Task<IReadOnlyList<PrescriptionDto>> GetMyPrescriptionsAsync(string userId, int skip = 0, int take = 50)
+    public async Task<PagedResult<PrescriptionDto>> GetMyPrescriptionsAsync(string userId, int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
+        (skip, take) = Pagination.Normalize(skip, take);
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
-        if (patient == null) return new List<PrescriptionDto>();
+        if (patient == null)
+            return PagedResult<PrescriptionDto>.Create(Array.Empty<PrescriptionDto>(), 0, skip, take);
 
-        var prescriptions = await _context.Prescriptions
+        var query = _context.Prescriptions
             .Include(p => p.Items)
             .AsNoTracking()
-            .Where(p => p.PatientProfileId == patient.Id)
+            .Where(p => p.PatientProfileId == patient.Id);
+        var totalCount = await query.CountAsync();
+        var prescriptions = await query
             .OrderByDescending(p => p.CreatedAt)
             .Skip(skip)
             .Take(take)
             .ToListAsync();
-        return await MapManyToDtoAsync(prescriptions);
+        return PagedResult<PrescriptionDto>.Create(
+            await MapManyToDtoAsync(prescriptions), totalCount, skip, take);
     }
 
     public async Task<PrescriptionDto> CreateAsync(string userId, CreatePrescriptionDto dto)
@@ -143,8 +149,7 @@ public class PrescriptionService : IPrescriptionService
         if (role == "Doctor")
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor != null && await _context.Appointments.AnyAsync(a =>
-                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == appointment.PatientProfileId))
+            if (doctor != null && appointment.DoctorProfileId == doctor.Id)
                 return;
         }
 

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.DTOs.Doctors;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.API.Controllers;
 
@@ -25,18 +26,24 @@ public class DoctorsController : ControllerBase
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var result = await _doctorService.GetAllAsync(specialty, name, skip, take);
-        return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.SuccessResponse(result));
+        return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.PagedSuccessResponse(result));
     }
 
     [Authorize(Roles = "Admin")]
     [HttpGet("admin/all")]
     [HttpGet("all")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DoctorDto>>>> GetAllForAdmin(
+        [FromQuery] DoctorApprovalStatus? status = null,
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
-        var result = await _doctorService.GetAllForAdminAsync(skip, take);
-        return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.SuccessResponse(result));
+        var result = await _doctorService.GetAllForAdminAsync(status, skip, take);
+        return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.PagedSuccessResponse(result));
     }
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("admin/summary")]
+    public async Task<ActionResult<ApiResponse<DoctorAdminSummaryDto>>> GetAdminSummary() =>
+        Ok(ApiResponse<DoctorAdminSummaryDto>.SuccessResponse(await _doctorService.GetAdminSummaryAsync()));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> GetById(Guid id)

@@ -31,8 +31,8 @@ public class MedicalRecordsController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
-        return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.SuccessResponse(
-            await _service.GetByPatientIdAsync(patientId, userId, role, skip, take)));
+        var page = await _service.GetByPatientIdAsync(patientId, userId, role, skip, take);
+        return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.PagedSuccessResponse(page));
     }
 
     [Authorize(Roles = "Patient")]
@@ -41,8 +41,8 @@ public class MedicalRecordsController : ControllerBase
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.SuccessResponse(
-            await _service.GetMyHistoryAsync(userId, skip, take)));
+        var page = await _service.GetMyHistoryAsync(userId, skip, take);
+        return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.PagedSuccessResponse(page));
     }
 
     [Authorize(Roles = "Doctor")]
@@ -86,8 +86,8 @@ public class PrescriptionsController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
-        return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.SuccessResponse(
-            await _service.GetByAppointmentIdAsync(appointmentId, userId, role, skip, take)));
+        var page = await _service.GetByAppointmentIdAsync(appointmentId, userId, role, skip, take);
+        return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.PagedSuccessResponse(page));
     }
 
     [Authorize(Roles = "Patient")]
@@ -96,8 +96,8 @@ public class PrescriptionsController : ControllerBase
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.SuccessResponse(
-            await _service.GetMyPrescriptionsAsync(userId, skip, take)));
+        var page = await _service.GetMyPrescriptionsAsync(userId, skip, take);
+        return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.PagedSuccessResponse(page));
     }
 
     [Authorize(Roles = "Doctor")]

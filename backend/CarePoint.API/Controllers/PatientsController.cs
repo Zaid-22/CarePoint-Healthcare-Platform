@@ -25,7 +25,7 @@ public class PatientsController : ControllerBase
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var result = await _patientService.GetAllAsync(skip, take);
-        return Ok(ApiResponse<IReadOnlyList<PatientDto>>.SuccessResponse(result));
+        return Ok(ApiResponse<IReadOnlyList<PatientDto>>.PagedSuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
@@ -38,6 +38,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet("me")]
+    [Authorize(Roles = "Patient")]
     public async Task<ActionResult<ApiResponse<PatientDto>>> GetMyProfile()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -47,6 +48,7 @@ public class PatientsController : ControllerBase
 
     [HttpPut("me")]
     [HttpPut]
+    [Authorize(Roles = "Patient")]
     public async Task<ActionResult<ApiResponse<PatientDto>>> UpdateMyProfile([FromBody] UpdatePatientDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -55,6 +57,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Patient")]
     public async Task<ActionResult<ApiResponse<PatientDto>>> Update(Guid id, [FromBody] UpdatePatientDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;

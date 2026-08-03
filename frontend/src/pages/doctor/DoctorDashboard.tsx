@@ -3,6 +3,7 @@ import api from '../../api/client';
 import type { AppointmentDto, DoctorDto, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
 import { ClockIcon } from '../../components/common/Icons';
+import { getClinicDateString } from '../../utils/clinicTime';
 
 export default function DoctorDashboard() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
@@ -29,7 +30,7 @@ export default function DoctorDashboard() {
     loadData();
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getClinicDateString();
   const todayApps = appointments.filter((a) => a.appointmentDate && a.appointmentDate.startsWith(todayStr));
   const pendingApps = appointments.filter((a) => a.status === 0);
 

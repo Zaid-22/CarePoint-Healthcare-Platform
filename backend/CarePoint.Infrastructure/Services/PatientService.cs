@@ -6,6 +6,7 @@ using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
+using CarePoint.Application.DTOs.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -55,30 +56,32 @@ public class PatientService : IPatientService
         return MapToDto(patient, user);
     }
 
-    public async Task<IReadOnlyList<PatientDto>> GetAllAsync(int skip = 0, int take = 50)
+    public async Task<PagedResult<PatientDto>> GetAllAsync(int skip = 0, int take = 50)
     {
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
-        return await (from patient in _context.PatientProfiles.AsNoTracking()
-                      join user in _context.Users.AsNoTracking() on patient.UserId equals user.Id
-                      orderby patient.CreatedAt descending
-                      select new PatientDto
-                      {
-                          Id = patient.Id,
-                          UserId = patient.UserId,
-                          FirstName = user.FirstName,
-                          LastName = user.LastName,
-                          Email = user.Email!,
-                          PhoneNumber = patient.PhoneNumber,
-                          DateOfBirth = patient.DateOfBirth,
-                          Gender = patient.Gender,
-                          BloodType = patient.BloodType,
-                          Address = patient.Address,
-                          EmergencyContact = patient.EmergencyContact
-                      })
+        (skip, take) = Pagination.Normalize(skip, take);
+        var query = from patient in _context.PatientProfiles.AsNoTracking()
+                    join user in _context.Users.AsNoTracking() on patient.UserId equals user.Id
+                    orderby patient.CreatedAt descending
+                    select new PatientDto
+                    {
+                        Id = patient.Id,
+                        UserId = patient.UserId,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName,
+                        Email = user.Email!,
+                        PhoneNumber = patient.PhoneNumber,
+                        DateOfBirth = patient.DateOfBirth,
+                        Gender = patient.Gender,
+                        BloodType = patient.BloodType,
+                        Address = patient.Address,
+                        EmergencyContact = patient.EmergencyContact
+                    };
+        var totalCount = await query.CountAsync();
+        var items = await query
             .Skip(skip)
             .Take(take)
             .ToListAsync();
+        return PagedResult<PatientDto>.Create(items, totalCount, skip, take);
     }
 
     public async Task<PatientDto> UpdateProfileAsync(Guid id, string userId, UpdatePatientDto dto)

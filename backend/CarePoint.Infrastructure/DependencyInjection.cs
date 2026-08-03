@@ -7,6 +7,7 @@ using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using CarePoint.Infrastructure.Repositories;
 using CarePoint.Infrastructure.Services;
+using CarePoint.Application.Configuration;
 
 namespace CarePoint.Infrastructure;
 
@@ -27,6 +28,9 @@ public static class DependencyInjection
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
         services.AddHealthChecks()
             .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" });
+        services.Configure<ClinicTimeSettings>(configuration.GetSection(ClinicTimeSettings.SectionName));
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IClinicClock, ClinicClock>();
 
         // Identity
         services.AddIdentity<ApplicationUser, IdentityRole>(options =>

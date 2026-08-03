@@ -27,7 +27,7 @@ public class AppointmentsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
         var result = await _appointmentService.GetAllAsync(userId, role, skip, take);
-        return Ok(ApiResponse<IReadOnlyList<AppointmentDto>>.SuccessResponse(result));
+        return Ok(ApiResponse<IReadOnlyList<AppointmentDto>>.PagedSuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
