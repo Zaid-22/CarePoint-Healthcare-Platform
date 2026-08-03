@@ -31,30 +31,32 @@ public class MedicalRecordService : IMedicalRecordService
         return await MapToDtoAsync(record);
     }
 
-    public async Task<IReadOnlyList<MedicalRecordDto>> GetByPatientIdAsync(Guid patientId, string userId, string role)
+    public async Task<IReadOnlyList<MedicalRecordDto>> GetByPatientIdAsync(
+        Guid patientId, string userId, string role, int skip = 0, int take = 50)
     {
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
         var doctorId = await GetDoctorIdForPatientHistoryAsync(patientId, userId, role);
         var query = _context.MedicalRecords
             .Include(r => r.Appointment).ThenInclude(a => a.DoctorProfile)
             .Include(r => r.Appointment).ThenInclude(a => a.PatientProfile)
+            .AsNoTracking()
             .Where(r => r.Appointment.PatientProfileId == patientId);
 
         // A doctor may only review records from appointments they personally handled.
         if (doctorId.HasValue)
             query = query.Where(r => r.Appointment.DoctorProfileId == doctorId.Value);
 
-        var records = await query.OrderByDescending(r => r.CreatedAt).ToListAsync();
-        var result = new List<MedicalRecordDto>();
-        foreach (var record in records)
-            result.Add(await MapToDtoAsync(record));
-        return result;
+        var records = await query.OrderByDescending(r => r.CreatedAt)
+            .Skip(skip).Take(take).ToListAsync();
+        return await MapManyToDtoAsync(records);
     }
 
-    public async Task<IReadOnlyList<MedicalRecordDto>> GetMyHistoryAsync(string userId)
+    public async Task<IReadOnlyList<MedicalRecordDto>> GetMyHistoryAsync(string userId, int skip = 0, int take = 50)
     {
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (patient == null) return new List<MedicalRecordDto>();
-        return await GetByPatientIdAsync(patient.Id, userId, "Patient");
+        return await GetByPatientIdAsync(patient.Id, userId, "Patient", skip, take);
     }
 
     public async Task<MedicalRecordDto> CreateAsync(string userId, CreateMedicalRecordDto dto)
@@ -153,5 +155,38 @@ public class MedicalRecordService : IMedicalRecordService
             Notes = r.Notes,
             CreatedAt = r.CreatedAt
         };
+    }
+
+    private async Task<IReadOnlyList<MedicalRecordDto>> MapManyToDtoAsync(IReadOnlyCollection<MedicalRecord> records)
+    {
+        var userIds = records
+            .SelectMany(record => new[]
+            {
+                record.Appointment.DoctorProfile.UserId,
+                record.Appointment.PatientProfile.UserId
+            })
+            .Distinct()
+            .ToList();
+        var users = await _context.Users.AsNoTracking()
+            .Where(user => userIds.Contains(user.Id))
+            .ToDictionaryAsync(user => user.Id);
+
+        return records.Select(record =>
+        {
+            users.TryGetValue(record.Appointment.DoctorProfile.UserId, out var doctor);
+            users.TryGetValue(record.Appointment.PatientProfile.UserId, out var patient);
+            return new MedicalRecordDto
+            {
+                Id = record.Id,
+                AppointmentId = record.AppointmentId,
+                DoctorName = doctor != null ? $"Dr. {doctor.FirstName} {doctor.LastName}" : "Practitioner",
+                PatientName = patient != null ? $"{patient.FirstName} {patient.LastName}" : "Patient",
+                AppointmentDate = record.Appointment.AppointmentDate,
+                Diagnosis = record.Diagnosis,
+                Treatment = record.Treatment,
+                Notes = record.Notes,
+                CreatedAt = record.CreatedAt
+            };
+        }).ToList();
     }
 }

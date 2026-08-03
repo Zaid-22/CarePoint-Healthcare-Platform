@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/useRedux';
-import { logout } from '../store/slices/authSlice';
+import { logoutFromServer } from '../store/slices/authSlice';
 import { LogoIcon, ShieldLockIcon, DashboardIcon, LogoutIcon } from '../components/common/Icons';
 
 export default function UnauthorizedPage() {
@@ -9,7 +9,7 @@ export default function UnauthorizedPage() {
   const { isAuthenticated, user } = useAppSelector((s) => s.auth);
 
   const handleLogout = () => {
-    dispatch(logout());
+    dispatch(logoutFromServer());
     navigate('/login', { replace: true });
   };
 

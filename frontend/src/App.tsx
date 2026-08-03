@@ -1,27 +1,28 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from './pages/auth/ResetPasswordPage';
-import PatientLayout from './layouts/PatientLayout';
-import DoctorLayout from './layouts/DoctorLayout';
-import PatientDashboard from './pages/patient/PatientDashboard';
-import FindDoctors from './pages/patient/FindDoctors';
-import MyAppointments from './pages/patient/MyAppointments';
-import MedicalHistoryPage from './pages/patient/MedicalHistoryPage';
-import PatientProfilePage from './pages/patient/PatientProfilePage';
-import MyPrescriptionsPage from './pages/patient/MyPrescriptionsPage';
-import DoctorDashboard from './pages/doctor/DoctorDashboard';
-import DoctorAppointments from './pages/doctor/DoctorAppointments';
-import DoctorProfilePage from './pages/doctor/DoctorProfilePage';
-import UnauthorizedPage from './pages/UnauthorizedPage';
-
-import AdminLayout from './layouts/AdminLayout';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminSpecialtiesPage from './pages/admin/AdminSpecialtiesPage';
-import LandingPage from './pages/LandingPage';
 import { useAppSelector } from './hooks/useRedux';
+
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const PatientLayout = lazy(() => import('./layouts/PatientLayout'));
+const DoctorLayout = lazy(() => import('./layouts/DoctorLayout'));
+const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
+const PatientDashboard = lazy(() => import('./pages/patient/PatientDashboard'));
+const FindDoctors = lazy(() => import('./pages/patient/FindDoctors'));
+const MyAppointments = lazy(() => import('./pages/patient/MyAppointments'));
+const MedicalHistoryPage = lazy(() => import('./pages/patient/MedicalHistoryPage'));
+const PatientProfilePage = lazy(() => import('./pages/patient/PatientProfilePage'));
+const MyPrescriptionsPage = lazy(() => import('./pages/patient/MyPrescriptionsPage'));
+const DoctorDashboard = lazy(() => import('./pages/doctor/DoctorDashboard'));
+const DoctorAppointments = lazy(() => import('./pages/doctor/DoctorAppointments'));
+const DoctorProfilePage = lazy(() => import('./pages/doctor/DoctorProfilePage'));
+const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminSpecialtiesPage = lazy(() => import('./pages/admin/AdminSpecialtiesPage'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 function HomeRoute() {
   const { isAuthenticated, user } = useAppSelector((s) => s.auth);
@@ -34,7 +35,8 @@ function HomeRoute() {
 
 export default function App() {
   return (
-    <Routes>
+    <Suspense fallback={<div className="page-enter" style={{ minHeight: '100vh', background: 'var(--bg-page)' }} />}>
+      <Routes>
       {/* Public */}
       <Route path="/" element={<HomeRoute />} />
       <Route path="/login" element={<LoginPage />} />
@@ -74,6 +76,7 @@ export default function App() {
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

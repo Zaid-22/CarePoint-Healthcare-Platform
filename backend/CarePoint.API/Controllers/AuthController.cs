@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using CarePoint.Application.DTOs.Auth;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.Interfaces;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace CarePoint.API.Controllers;
 
@@ -22,6 +23,7 @@ public class AuthController : ControllerBase
     /// Register a new user (Patient or Doctor).
     /// </summary>
     [HttpPost("register")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Register([FromBody] RegisterDto dto)
     {
         var result = await _authService.RegisterAsync(dto);
@@ -32,6 +34,7 @@ public class AuthController : ControllerBase
     /// Login with email and password.
     /// </summary>
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Login([FromBody] LoginDto dto)
     {
         var result = await _authService.LoginAsync(dto);
@@ -42,6 +45,7 @@ public class AuthController : ControllerBase
     /// Refresh an expired access token using a valid refresh token.
     /// </summary>
     [HttpPost("refresh-token")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> RefreshToken([FromBody] RefreshTokenRequestDto dto)
     {
         var result = await _authService.RefreshTokenAsync(dto);
@@ -51,12 +55,11 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Logout — revoke the refresh token.
     /// </summary>
-    [Authorize]
     [HttpPost("logout")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<string>>> Logout([FromBody] RefreshTokenRequestDto dto)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        await _authService.LogoutAsync(userId, dto.RefreshToken);
+        await _authService.LogoutAsync(dto.RefreshToken);
         return Ok(ApiResponse<string>.SuccessResponse("Logged out successfully."));
     }
 
@@ -76,6 +79,7 @@ public class AuthController : ControllerBase
     /// Request a password reset email.
     /// </summary>
     [HttpPost("forgot-password")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<string>>> ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
         await _authService.ForgotPasswordAsync(dto);
@@ -86,6 +90,7 @@ public class AuthController : ControllerBase
     /// Reset password using token from email.
     /// </summary>
     [HttpPost("reset-password")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<string>>> ResetPassword([FromBody] ResetPasswordDto dto)
     {
         await _authService.ResetPasswordAsync(dto);

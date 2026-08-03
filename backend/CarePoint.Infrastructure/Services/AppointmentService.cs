@@ -8,6 +8,7 @@ using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using System.Data;
+using CarePoint.Domain.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -37,21 +38,21 @@ public class AppointmentService : IAppointmentService
         return await MapToDtoAsync(appointment);
     }
 
-    public async Task<IReadOnlyList<AppointmentDto>> GetAllAsync(string userId, string role)
+    public async Task<IReadOnlyList<AppointmentDto>> GetAllAsync(string userId, string role, int skip = 0, int take = 50)
     {
-        IQueryable<Appointment> query = _context.Appointments
-            .Include(a => a.PatientProfile)
-            .Include(a => a.DoctorProfile);
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
+        IQueryable<Appointment> query = _context.Appointments.AsNoTracking();
 
         if (role == "Patient")
         {
-            var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+            var patient = await _context.PatientProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId);
             if (patient == null) return Array.Empty<AppointmentDto>();
             query = query.Where(a => a.PatientProfileId == patient.Id);
         }
         else if (role == "Doctor")
         {
-            var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
+            var doctor = await _context.DoctorProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor == null) return Array.Empty<AppointmentDto>();
             query = query.Where(a => a.DoctorProfileId == doctor.Id);
         }
@@ -60,10 +61,29 @@ public class AppointmentService : IAppointmentService
             throw new ForbiddenException();
         }
 
-        var appointments = await query.OrderByDescending(a => a.AppointmentDate).ToListAsync();
-        var result = new List<AppointmentDto>();
-        foreach (var a in appointments) result.Add(await MapToDtoAsync(a));
-        return result;
+        return await query
+            .OrderByDescending(a => a.AppointmentDate)
+            .ThenByDescending(a => a.StartTime)
+            .Skip(skip)
+            .Take(take)
+            .Select(a => new AppointmentDto
+            {
+                Id = a.Id,
+                PatientProfileId = a.PatientProfileId,
+                PatientName = _context.Users.Where(u => u.Id == a.PatientProfile.UserId)
+                    .Select(u => u.FirstName + " " + u.LastName).FirstOrDefault() ?? string.Empty,
+                DoctorProfileId = a.DoctorProfileId,
+                DoctorName = _context.Users.Where(u => u.Id == a.DoctorProfile.UserId)
+                    .Select(u => u.FirstName + " " + u.LastName).FirstOrDefault() ?? string.Empty,
+                AppointmentDate = a.AppointmentDate,
+                StartTime = a.StartTime,
+                EndTime = a.EndTime,
+                Status = a.Status,
+                Notes = a.Notes,
+                CancellationReason = a.CancellationReason,
+                CreatedAt = a.CreatedAt
+            })
+            .ToListAsync();
     }
 
     public async Task<AppointmentDto> CreateAsync(string userId, CreateAppointmentDto dto)
@@ -137,12 +157,12 @@ public class AppointmentService : IAppointmentService
         if (role == "Doctor")
         {
             ValidateAccess(appointment, userId, role);
-            if (!IsValidDoctorStatusTransition(appointment.Status, dto.Status))
+            if (!AppointmentStatusTransitions.CanDoctorTransition(appointment.Status, dto.Status))
                 throw new BadRequestException("This appointment status transition is not allowed.");
         }
         else if (role == "Admin")
         {
-            if (!IsValidAdminStatusTransition(appointment.Status, dto.Status))
+            if (!AppointmentStatusTransitions.CanAdminTransition(appointment.Status, dto.Status))
                 throw new BadRequestException("This appointment status transition is not allowed.");
         }
         else
@@ -285,26 +305,6 @@ public class AppointmentService : IAppointmentService
             (appointmentDate.Date == utcNow.Date && startTime <= TimeOnly.FromDateTime(utcNow)))
             throw new BadRequestException("Appointments must be scheduled in the future.");
     }
-
-    private static bool IsValidDoctorStatusTransition(AppointmentStatus current, AppointmentStatus requested) =>
-        (current, requested) switch
-        {
-            (AppointmentStatus.Pending, AppointmentStatus.Accepted) => true,
-            (AppointmentStatus.Pending, AppointmentStatus.Rejected) => true,
-            (AppointmentStatus.Accepted, AppointmentStatus.InProgress) => true,
-            (AppointmentStatus.Accepted, AppointmentStatus.Completed) => true,
-            (AppointmentStatus.InProgress, AppointmentStatus.Completed) => true,
-            _ => false
-        };
-
-    private static bool IsValidAdminStatusTransition(AppointmentStatus current, AppointmentStatus requested) =>
-        (current, requested) switch
-        {
-            (AppointmentStatus.Pending, AppointmentStatus.Accepted or AppointmentStatus.Rejected or AppointmentStatus.Cancelled) => true,
-            (AppointmentStatus.Accepted, AppointmentStatus.InProgress or AppointmentStatus.Completed or AppointmentStatus.Cancelled or AppointmentStatus.NoShow) => true,
-            (AppointmentStatus.InProgress, AppointmentStatus.Completed or AppointmentStatus.Cancelled or AppointmentStatus.NoShow) => true,
-            _ => false
-        };
 
     private async Task<AppointmentDto> MapToDtoAsync(Appointment a)
     {

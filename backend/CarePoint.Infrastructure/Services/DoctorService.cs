@@ -37,12 +37,17 @@ public class DoctorService : IDoctorService
         return MapToDto(doctor, user);
     }
 
-    public async Task<IReadOnlyList<DoctorDto>> GetAllAsync(string? specialtyFilter = null, string? nameFilter = null)
+    public async Task<IReadOnlyList<DoctorDto>> GetAllAsync(
+        string? specialtyFilter = null, string? nameFilter = null, int skip = 0, int take = 50)
     {
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
         var query = _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
             .Where(d => d.ApprovalStatus == DoctorApprovalStatus.Approved)
+            .AsNoTracking()
+            .AsSplitQuery()
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(specialtyFilter))
@@ -51,38 +56,47 @@ public class DoctorService : IDoctorService
                 .Any(ds => ds.Specialty.Name.Contains(specialtyFilter)));
         }
 
-        var doctors = await query.ToListAsync();
+        if (!string.IsNullOrWhiteSpace(nameFilter))
+        {
+            query = query.Where(d => _context.Users.Any(user =>
+                user.Id == d.UserId && (user.FirstName + " " + user.LastName).Contains(nameFilter)));
+        }
+
+        var doctors = await query
+            .OrderByDescending(d => d.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync();
+        var users = await LoadUsersAsync(doctors.Select(d => d.UserId));
         var result = new List<DoctorDto>();
 
         foreach (var doctor in doctors)
         {
-            var user = await _userManager.FindByIdAsync(doctor.UserId);
-            if (user == null) continue;
-
-            if (!string.IsNullOrWhiteSpace(nameFilter) &&
-                !$"{user.FirstName} {user.LastName}".Contains(nameFilter, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            result.Add(MapToDto(doctor, user));
+            if (users.TryGetValue(doctor.UserId, out var user)) result.Add(MapToDto(doctor, user));
         }
 
         return result;
     }
 
-    public async Task<IReadOnlyList<DoctorDto>> GetAllForAdminAsync()
+    public async Task<IReadOnlyList<DoctorDto>> GetAllForAdminAsync(int skip = 0, int take = 50)
     {
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
         var doctors = await _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
+            .AsNoTracking()
+            .AsSplitQuery()
             .OrderByDescending(d => d.CreatedAt)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync();
 
+        var users = await LoadUsersAsync(doctors.Select(d => d.UserId));
         var result = new List<DoctorDto>();
         foreach (var doctor in doctors)
         {
-            var user = await _userManager.FindByIdAsync(doctor.UserId);
-            if (user == null) continue;
-            result.Add(MapToDto(doctor, user));
+            if (users.TryGetValue(doctor.UserId, out var user)) result.Add(MapToDto(doctor, user));
         }
         return result;
     }
@@ -409,6 +423,14 @@ public class DoctorService : IDoctorService
 
         if (overlaps)
             throw new ConflictException("Availability periods on the same day cannot overlap.");
+    }
+
+    private async Task<Dictionary<string, ApplicationUser>> LoadUsersAsync(IEnumerable<string> userIds)
+    {
+        var ids = userIds.Distinct().ToList();
+        return await _context.Users.AsNoTracking()
+            .Where(user => ids.Contains(user.Id))
+            .ToDictionaryAsync(user => user.Id);
     }
 
     private static DoctorDto MapToDto(DoctorProfile doctor, ApplicationUser user) => new()

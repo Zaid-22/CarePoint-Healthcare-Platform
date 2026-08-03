@@ -55,16 +55,30 @@ public class PatientService : IPatientService
         return MapToDto(patient, user);
     }
 
-    public async Task<IReadOnlyList<PatientDto>> GetAllAsync()
+    public async Task<IReadOnlyList<PatientDto>> GetAllAsync(int skip = 0, int take = 50)
     {
-        var patients = await _context.PatientProfiles.ToListAsync();
-        var result = new List<PatientDto>();
-        foreach (var p in patients)
-        {
-            var user = await _userManager.FindByIdAsync(p.UserId);
-            if (user != null) result.Add(MapToDto(p, user));
-        }
-        return result;
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
+        return await (from patient in _context.PatientProfiles.AsNoTracking()
+                      join user in _context.Users.AsNoTracking() on patient.UserId equals user.Id
+                      orderby patient.CreatedAt descending
+                      select new PatientDto
+                      {
+                          Id = patient.Id,
+                          UserId = patient.UserId,
+                          FirstName = user.FirstName,
+                          LastName = user.LastName,
+                          Email = user.Email!,
+                          PhoneNumber = patient.PhoneNumber,
+                          DateOfBirth = patient.DateOfBirth,
+                          Gender = patient.Gender,
+                          BloodType = patient.BloodType,
+                          Address = patient.Address,
+                          EmergencyContact = patient.EmergencyContact
+                      })
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync();
     }
 
     public async Task<PatientDto> UpdateProfileAsync(Guid id, string userId, UpdatePatientDto dto)

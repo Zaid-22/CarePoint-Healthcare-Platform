@@ -26,21 +26,23 @@ public class MedicalRecordsController : ControllerBase
     }
 
     [HttpGet("patient/{patientId:guid}")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetByPatient(Guid patientId)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetByPatient(
+        Guid patientId, [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.SuccessResponse(
-            await _service.GetByPatientIdAsync(patientId, userId, role)));
+            await _service.GetByPatientIdAsync(patientId, userId, role, skip, take)));
     }
 
     [Authorize(Roles = "Patient")]
     [HttpGet("my-history")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetMyHistory()
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetMyHistory(
+        [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.SuccessResponse(
-            await _service.GetMyHistoryAsync(userId)));
+            await _service.GetMyHistoryAsync(userId, skip, take)));
     }
 
     [Authorize(Roles = "Doctor")]
@@ -79,21 +81,23 @@ public class PrescriptionsController : ControllerBase
     }
 
     [HttpGet("appointment/{appointmentId:guid}")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionDto>>>> GetByAppointment(Guid appointmentId)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionDto>>>> GetByAppointment(
+        Guid appointmentId, [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
         return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.SuccessResponse(
-            await _service.GetByAppointmentIdAsync(appointmentId, userId, role)));
+            await _service.GetByAppointmentIdAsync(appointmentId, userId, role, skip, take)));
     }
 
     [Authorize(Roles = "Patient")]
     [HttpGet("my-prescriptions")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionDto>>>> GetMyPrescriptions()
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionDto>>>> GetMyPrescriptions(
+        [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.SuccessResponse(
-            await _service.GetMyPrescriptionsAsync(userId)));
+            await _service.GetMyPrescriptionsAsync(userId, skip, take)));
     }
 
     [Authorize(Roles = "Doctor")]

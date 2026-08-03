@@ -21,9 +21,10 @@ public class PatientsController : ControllerBase
 
     [Authorize(Roles = "Admin")]
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<PatientDto>>>> GetAll()
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PatientDto>>>> GetAll(
+        [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
-        var result = await _patientService.GetAllAsync();
+        var result = await _patientService.GetAllAsync(skip, take);
         return Ok(ApiResponse<IReadOnlyList<PatientDto>>.SuccessResponse(result));
     }
 

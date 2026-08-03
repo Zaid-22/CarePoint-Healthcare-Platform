@@ -34,6 +34,20 @@ export const register = createAsyncThunk<AuthResponse, RegisterRequest, { reject
   }
 );
 
+export const logoutFromServer = createAsyncThunk<void, void>(
+  'auth/logoutFromServer',
+  async (_, { dispatch }) => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    try {
+      if (refreshToken) {
+        await api.post('/auth/logout', { refreshToken });
+      }
+    } finally {
+      dispatch(logout());
+    }
+  }
+);
+
 const extractUser = (payload: AuthResponse): AuthUser => {
   const roles = payload.roles && payload.roles.length > 0
     ? payload.roles

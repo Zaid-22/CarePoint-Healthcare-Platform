@@ -217,11 +217,11 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task LogoutAsync(string userId, string refreshToken)
+    public async Task LogoutAsync(string refreshToken)
     {
         var revokedAt = DateTime.UtcNow;
         await _context.RefreshTokens
-            .Where(rt => rt.Token == refreshToken && rt.UserId == userId && !rt.IsRevoked)
+            .Where(rt => rt.Token == refreshToken && !rt.IsRevoked)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(rt => rt.IsRevoked, true)
                 .SetProperty(rt => rt.RevokedAt, revokedAt));

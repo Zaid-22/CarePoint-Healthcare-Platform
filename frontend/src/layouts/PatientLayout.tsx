@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/useRedux';
-import { logout } from '../store/slices/authSlice';
+import { logoutFromServer } from '../store/slices/authSlice';
 import { DashboardIcon, SearchIcon, CalendarIcon, FileTextIcon, LogoIcon, LogoutIcon, UserIcon } from '../components/common/Icons';
 import NotificationDrawer from '../components/common/NotificationDrawer';
 
@@ -18,8 +18,8 @@ export default function PatientLayout() {
   const navigate = useNavigate();
   const { user } = useAppSelector((s) => s.auth);
 
-  const handleLogout = () => {
-    dispatch(logout());
+  const handleLogout = async () => {
+    await dispatch(logoutFromServer());
     navigate('/login', { replace: true });
   };
 

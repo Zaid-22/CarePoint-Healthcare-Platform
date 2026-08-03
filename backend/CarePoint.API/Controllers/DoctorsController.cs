@@ -21,18 +21,20 @@ public class DoctorsController : ControllerBase
     [HttpGet]
     [HttpGet("approved")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DoctorDto>>>> GetAll(
-        [FromQuery] string? specialty, [FromQuery] string? name)
+        [FromQuery] string? specialty, [FromQuery] string? name,
+        [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
-        var result = await _doctorService.GetAllAsync(specialty, name);
+        var result = await _doctorService.GetAllAsync(specialty, name, skip, take);
         return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.SuccessResponse(result));
     }
 
     [Authorize(Roles = "Admin")]
     [HttpGet("admin/all")]
     [HttpGet("all")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<DoctorDto>>>> GetAllForAdmin()
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DoctorDto>>>> GetAllForAdmin(
+        [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
-        var result = await _doctorService.GetAllForAdminAsync();
+        var result = await _doctorService.GetAllForAdminAsync(skip, take);
         return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.SuccessResponse(result));
     }
 

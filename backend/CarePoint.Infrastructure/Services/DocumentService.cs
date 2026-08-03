@@ -27,7 +27,7 @@ public class DocumentService : IDocumentService
             .Include(d => d.Appointment).ThenInclude(a => a!.DoctorProfile)
             .FirstOrDefaultAsync(d => d.Id == id)
             ?? throw new NotFoundException("Document", id);
-        await EnsureCanReadAsync(doc, userId, role);
+        EnsureCanRead(doc, userId, role);
         return MapToDto(doc);
     }
 
@@ -124,7 +124,7 @@ public class DocumentService : IDocumentService
         CreatedAt = d.CreatedAt
     };
 
-    private async Task EnsureCanReadAsync(MedicalDocument document, string userId, string role)
+    private static void EnsureCanRead(MedicalDocument document, string userId, string role)
     {
         if (role == "Admin") return;
         if (role == "Patient" && document.PatientProfile.UserId == userId) return;

@@ -23,42 +23,42 @@ public class PrescriptionService : IPrescriptionService
         return await MapToDtoAsync(rx);
     }
 
-    public async Task<IReadOnlyList<PrescriptionDto>> GetByAppointmentIdAsync(Guid appointmentId, string userId, string role)
+    public async Task<IReadOnlyList<PrescriptionDto>> GetByAppointmentIdAsync(
+        Guid appointmentId, string userId, string role, int skip = 0, int take = 50)
     {
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
         var appointment = await _context.Appointments.FindAsync(appointmentId)
             ?? throw new NotFoundException("Appointment", appointmentId);
         await EnsureCanReadAppointmentAsync(appointment, userId, role);
 
         var prescriptions = await _context.Prescriptions
             .Include(p => p.Items)
+            .AsNoTracking()
             .Where(p => p.AppointmentId == appointmentId)
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync();
-
-        var list = new List<PrescriptionDto>();
-        foreach (var p in prescriptions)
-        {
-            list.Add(await MapToDtoAsync(p));
-        }
-        return list;
+        return await MapManyToDtoAsync(prescriptions);
     }
 
-    public async Task<IReadOnlyList<PrescriptionDto>> GetMyPrescriptionsAsync(string userId)
+    public async Task<IReadOnlyList<PrescriptionDto>> GetMyPrescriptionsAsync(string userId, int skip = 0, int take = 50)
     {
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (patient == null) return new List<PrescriptionDto>();
 
         var prescriptions = await _context.Prescriptions
             .Include(p => p.Items)
+            .AsNoTracking()
             .Where(p => p.PatientProfileId == patient.Id)
             .OrderByDescending(p => p.CreatedAt)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync();
-
-        var list = new List<PrescriptionDto>();
-        foreach (var p in prescriptions)
-        {
-            list.Add(await MapToDtoAsync(p));
-        }
-        return list;
+        return await MapManyToDtoAsync(prescriptions);
     }
 
     public async Task<PrescriptionDto> CreateAsync(string userId, CreatePrescriptionDto dto)
@@ -200,5 +200,42 @@ public class PrescriptionService : IPrescriptionService
                 Instructions = i.Instructions
             }).ToList()
         };
+    }
+
+    private async Task<IReadOnlyList<PrescriptionDto>> MapManyToDtoAsync(IReadOnlyCollection<Prescription> prescriptions)
+    {
+        var doctorIds = prescriptions.Select(p => p.DoctorProfileId).Distinct().ToList();
+        var patientIds = prescriptions.Select(p => p.PatientProfileId).Distinct().ToList();
+        var doctorNames = await (from doctor in _context.DoctorProfiles.AsNoTracking()
+                                 join user in _context.Users.AsNoTracking() on doctor.UserId equals user.Id
+                                 where doctorIds.Contains(doctor.Id)
+                                 select new { doctor.Id, Name = "Dr. " + user.FirstName + " " + user.LastName })
+            .ToDictionaryAsync(item => item.Id, item => item.Name);
+        var patientNames = await (from patient in _context.PatientProfiles.AsNoTracking()
+                                  join user in _context.Users.AsNoTracking() on patient.UserId equals user.Id
+                                  where patientIds.Contains(patient.Id)
+                                  select new { patient.Id, Name = user.FirstName + " " + user.LastName })
+            .ToDictionaryAsync(item => item.Id, item => item.Name);
+
+        return prescriptions.Select(p => new PrescriptionDto
+        {
+            Id = p.Id,
+            AppointmentId = p.AppointmentId,
+            DoctorProfileId = p.DoctorProfileId,
+            DoctorName = doctorNames.GetValueOrDefault(p.DoctorProfileId, "Practitioner"),
+            PatientProfileId = p.PatientProfileId,
+            PatientName = patientNames.GetValueOrDefault(p.PatientProfileId, "Patient"),
+            Notes = p.Notes,
+            CreatedAt = p.CreatedAt,
+            Items = p.Items.Select(i => new PrescriptionItemDto
+            {
+                Id = i.Id,
+                MedicationName = i.MedicationName,
+                Dosage = i.Dosage,
+                Frequency = i.Frequency,
+                Duration = i.Duration,
+                Instructions = i.Instructions
+            }).ToList()
+        }).ToList();
     }
 }
