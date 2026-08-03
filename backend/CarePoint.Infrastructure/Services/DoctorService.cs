@@ -173,9 +173,12 @@ public class DoctorService : IDoctorService
         if (dto.SpecialtyIds != null && dto.SpecialtyIds.Count > 0)
         {
             var validSpecialties = await _context.Specialties
-                .Where(s => dto.SpecialtyIds.Contains(s.Id))
+                .Where(s => s.IsActive && dto.SpecialtyIds.Contains(s.Id))
                 .Select(s => s.Id)
                 .ToListAsync();
+
+            if (validSpecialties.Count != dto.SpecialtyIds.Distinct().Count())
+                throw new BadRequestException("One or more selected specialties are invalid or inactive.");
 
             foreach (var specialtyId in validSpecialties)
             {
@@ -263,6 +266,7 @@ public class DoctorService : IDoctorService
 
     public async Task<DoctorDto> ApproveAsync(Guid id)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
         doctor.ApprovalStatus = DoctorApprovalStatus.Approved;
@@ -275,12 +279,14 @@ public class DoctorService : IDoctorService
             NotificationType.DoctorApproved,
             id
         );
+        await transaction.CommitAsync();
 
         return await GetByIdAsync(id);
     }
 
     public async Task<DoctorDto> RejectAsync(Guid id)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
         doctor.ApprovalStatus = DoctorApprovalStatus.Rejected;
@@ -293,6 +299,7 @@ public class DoctorService : IDoctorService
             NotificationType.SystemAlert,
             id
         );
+        await transaction.CommitAsync();
 
         return await GetByIdAsync(id);
     }

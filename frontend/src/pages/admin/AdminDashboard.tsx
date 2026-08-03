@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
-import type { DoctorDto, ApiResponse } from '../../types';
+import type { DoctorDto, DoctorAdminSummaryDto, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
 import { DoctorIcon, CheckIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '../../components/common/Icons';
+import PaginationControls from '../../components/common/PaginationControls';
+
+const PAGE_SIZE = 20;
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<DoctorDto[]>([]);
@@ -11,21 +14,32 @@ export default function AdminDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [summary, setSummary] = useState<DoctorAdminSummaryDto>({
+    totalRegistered: 0,
+    pendingCount: 0,
+    approvedCount: 0,
+    rejectedCount: 0,
+  });
 
   useEffect(() => {
     fetchDoctors();
-  }, []);
+  }, [filter, skip]);
 
   const fetchDoctors = async () => {
     try {
       setLoading(true);
-      let res;
-      try {
-        res = await api.get<ApiResponse<DoctorDto[]>>('/doctors/admin/all');
-      } catch {
-        res = await api.get<ApiResponse<DoctorDto[]>>('/doctors/all');
-      }
+      const status = filter === 'all'
+        ? ''
+        : `&status=${filter === 'pending' ? 0 : filter === 'approved' ? 1 : 2}`;
+      const [res, summaryRes] = await Promise.all([
+        api.get<ApiResponse<DoctorDto[]>>(`/doctors/admin/all?skip=${skip}&take=${PAGE_SIZE}${status}`),
+        api.get<ApiResponse<DoctorAdminSummaryDto>>('/doctors/admin/summary'),
+      ]);
       setDoctors(res.data.data || []);
+      setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
+      setSummary(summaryRes.data.data);
     } catch (err: any) {
       console.error('Failed to fetch doctors', err);
       setError(err.response?.data?.message || 'Failed to load doctor applications.');
@@ -64,16 +78,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const pendingCount = doctors.filter((d) => d.approvalStatus === 0).length;
-  const approvedCount = doctors.filter((d) => d.approvalStatus === 1).length;
-  const rejectedCount = doctors.filter((d) => d.approvalStatus === 2).length;
-
-  const filteredDoctors = doctors.filter((d) => {
-    if (filter === 'pending') return d.approvalStatus === 0;
-    if (filter === 'approved') return d.approvalStatus === 1;
-    if (filter === 'rejected') return d.approvalStatus === 2;
-    return true;
-  });
+  const filteredDoctors = doctors;
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -109,7 +114,7 @@ export default function AdminDashboard() {
               Total Registered
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-display)', marginTop: 6, color: 'var(--text-primary)' }}>
-              {doctors.length}
+              {summary.totalRegistered}
             </div>
           </div>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -123,7 +128,7 @@ export default function AdminDashboard() {
               Pending Review
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-display)', marginTop: 6, color: '#d97706' }}>
-              {pendingCount}
+              {summary.pendingCount}
             </div>
           </div>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -137,7 +142,7 @@ export default function AdminDashboard() {
               Approved Doctors
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-display)', marginTop: 6, color: 'var(--accent)' }}>
-              {approvedCount}
+              {summary.approvedCount}
             </div>
           </div>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--color-teal-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -151,7 +156,7 @@ export default function AdminDashboard() {
               Rejected
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-display)', marginTop: 6, color: 'var(--color-rose-600)' }}>
-              {rejectedCount}
+              {summary.rejectedCount}
             </div>
           </div>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--color-rose-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -164,7 +169,7 @@ export default function AdminDashboard() {
       <div className="card" style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.125rem', fontWeight: 700 }}>
-            Doctor Applications ({filteredDoctors.length})
+            Doctor Applications ({totalCount})
           </h2>
 
           <div style={{ display: 'flex', gap: 8 }}>
@@ -172,7 +177,7 @@ export default function AdminDashboard() {
               <button
                 key={f}
                 className={`btn ${filter === f ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setFilter(f)}
+                onClick={() => { setFilter(f); setSkip(0); }}
                 style={{ padding: '6px 14px', fontSize: '0.8125rem', textTransform: 'capitalize' }}
               >
                 {f}
@@ -270,6 +275,12 @@ export default function AdminDashboard() {
                 </div>
               );
             })}
+            <PaginationControls
+              skip={skip}
+              take={PAGE_SIZE}
+              totalCount={totalCount}
+              onPageChange={setSkip}
+            />
           </div>
         )}
       </div>

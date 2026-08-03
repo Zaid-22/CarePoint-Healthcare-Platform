@@ -66,6 +66,8 @@ cp .env.example .env
 
 Password resets use SMTP when `SMTP_HOST` and `EMAIL_FROM_ADDRESS` are configured. In Development, if SMTP is intentionally omitted, the reset URL is written to the API log so the flow remains testable locally.
 
+Appointment dates and times use `CLINIC_TIME_ZONE` (`Asia/Amman` by default). Production deployments should run `dotnet ef database update` as a release step and leave `INITIALIZE_DATABASE_ON_STARTUP=false`, which keeps `/health/live` available during database outages. When the API is behind a reverse proxy, configure each trusted proxy with `ForwardedHeaders__KnownProxies__0`, `__1`, and so on.
+
 ### Run the complete development stack
 
 ```bash

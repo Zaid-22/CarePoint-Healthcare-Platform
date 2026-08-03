@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -59,6 +60,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
+    foreach (var configuredProxy in builder.Configuration
+                 .GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? Array.Empty<string>())
+    {
+        if (!IPAddress.TryParse(configuredProxy, out var address))
+            throw new InvalidOperationException($"ForwardedHeaders:KnownProxies contains invalid IP '{configuredProxy}'.");
+        options.KnownProxies.Add(address);
+    }
 });
 builder.Services.AddRateLimiter(options =>
 {
@@ -123,9 +131,13 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = registration => registration.Tags.Contains("ready")
 });
 
-// Seed roles and admin user
-using (var scope = app.Services.CreateScope())
+// Local/container convenience only. Production should run migrations as a deployment step so
+// liveness remains available when the database is temporarily unavailable.
+var initializeDatabase = builder.Configuration.GetValue(
+    "Database:InitializeOnStartup", app.Environment.IsDevelopment());
+if (initializeDatabase)
 {
+    using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<CarePoint.Infrastructure.Data.ApplicationDbContext>();
     await context.Database.MigrateAsync();
     var seedDemoData = app.Environment.IsDevelopment() && builder.Configuration.GetValue("SeedDemoData", false);

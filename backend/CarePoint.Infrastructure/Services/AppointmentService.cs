@@ -139,18 +139,18 @@ public class AppointmentService : IAppointmentService
 
         _context.Appointments.Add(appointment);
         await _context.SaveChangesAsync();
-        await transaction.CommitAsync();
-
         await _notificationService.CreateNotificationAsync(
             doctor.UserId, "New Appointment",
             "You have a new appointment request.",
             NotificationType.AppointmentBooked, appointment.Id);
+        await transaction.CommitAsync();
 
         return await GetByIdAsync(appointment.Id, userId, "Patient");
     }
 
     public async Task<AppointmentDto> UpdateStatusAsync(Guid id, string userId, string role, UpdateAppointmentStatusDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var appointment = await _context.Appointments
             .Include(a => a.PatientProfile)
             .Include(a => a.DoctorProfile)
@@ -180,8 +180,6 @@ public class AppointmentService : IAppointmentService
         if (dto.CancellationReason != null) appointment.CancellationReason = dto.CancellationReason;
         await _context.SaveChangesAsync();
 
-        // Notify the other party
-        var notifyUserId = role == "Doctor" ? appointment.PatientProfile!.UserId : appointment.DoctorProfile!.UserId;
         var notificationType = dto.Status switch
         {
             AppointmentStatus.Accepted => NotificationType.AppointmentAccepted,
@@ -190,10 +188,15 @@ public class AppointmentService : IAppointmentService
             _ => NotificationType.SystemAlert
         };
 
-        await _notificationService.CreateNotificationAsync(
-            notifyUserId, $"Appointment {dto.Status}",
-            $"Your appointment status has been updated to {dto.Status}.",
-            notificationType, appointment.Id);
+        foreach (var recipient in AppointmentNotificationRecipients.ForActor(
+                     role, appointment.PatientProfile!.UserId, appointment.DoctorProfile!.UserId))
+        {
+            await _notificationService.CreateNotificationAsync(
+                recipient, $"Appointment {dto.Status}",
+                $"Your appointment status has been updated to {dto.Status}.",
+                notificationType, appointment.Id);
+        }
+        await transaction.CommitAsync();
 
         return await MapToDtoAsync(appointment);
     }
@@ -203,7 +206,9 @@ public class AppointmentService : IAppointmentService
         ValidateDateAndTime(dto.NewAppointmentDate, dto.NewStartTime, dto.NewEndTime);
 
         await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-        var appointment = await _context.Appointments.FindAsync(id)
+        var appointment = await _context.Appointments
+            .Include(a => a.DoctorProfile)
+            .FirstOrDefaultAsync(a => a.Id == id)
             ?? throw new NotFoundException("Appointment", id);
 
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
@@ -225,6 +230,12 @@ public class AppointmentService : IAppointmentService
         appointment.EndTime = dto.NewEndTime;
         appointment.Status = AppointmentStatus.Pending;
         await _context.SaveChangesAsync();
+        await _notificationService.CreateNotificationAsync(
+            appointment.DoctorProfile.UserId,
+            "Appointment Rescheduled",
+            "A patient rescheduled an appointment and it requires review.",
+            NotificationType.SystemAlert,
+            appointment.Id);
         await transaction.CommitAsync();
 
         return await GetByIdAsync(id, userId, "Patient");
@@ -232,6 +243,7 @@ public class AppointmentService : IAppointmentService
 
     public async Task<AppointmentDto> CancelAsync(Guid id, string userId, string role, CancelAppointmentDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var appointment = await _context.Appointments
             .Include(a => a.PatientProfile)
             .Include(a => a.DoctorProfile)
@@ -246,13 +258,17 @@ public class AppointmentService : IAppointmentService
         appointment.CancellationReason = dto.CancellationReason;
         await _context.SaveChangesAsync();
 
-        var notifyUserId = role == "Doctor" ? appointment.PatientProfile.UserId : appointment.DoctorProfile.UserId;
-        await _notificationService.CreateNotificationAsync(
-            notifyUserId,
-            "Appointment Cancelled",
-            "Your appointment has been cancelled.",
-            NotificationType.AppointmentCancelled,
-            appointment.Id);
+        foreach (var recipient in AppointmentNotificationRecipients.ForActor(
+                     role, appointment.PatientProfile.UserId, appointment.DoctorProfile.UserId))
+        {
+            await _notificationService.CreateNotificationAsync(
+                recipient,
+                "Appointment Cancelled",
+                "Your appointment has been cancelled.",
+                NotificationType.AppointmentCancelled,
+                appointment.Id);
+        }
+        await transaction.CommitAsync();
 
         return await MapToDtoAsync(appointment);
     }

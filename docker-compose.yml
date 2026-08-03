@@ -36,6 +36,8 @@ services:
       - EmailSettings__SmtpPassword=${SMTP_PASSWORD:-}
       - EmailSettings__UseSsl=${SMTP_USE_SSL:-true}
       - EmailSettings__PasswordResetUrl=${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
+      - ClinicTime__TimeZoneId=${CLINIC_TIME_ZONE:-Asia/Amman}
+      - Database__InitializeOnStartup=${INITIALIZE_DATABASE_ON_STARTUP:-true}
 
   frontend:
     build:
@@ -47,6 +49,7 @@ services:
       - api
     environment:
       - VITE_API_PROXY_TARGET=http://api:8080
+      - VITE_CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Amman}
 
 volumes:
   sqlserver-data:

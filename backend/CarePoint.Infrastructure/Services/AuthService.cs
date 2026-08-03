@@ -61,6 +61,7 @@ public class AuthService : IAuthService
                 throw new BadRequestException("One or more selected specialties are invalid.");
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var user = new ApplicationUser
         {
             UserName = dto.Email,
@@ -78,7 +79,12 @@ public class AuthService : IAuthService
 
         // Assign role
         var role = dto.Role == "Doctor" ? "Doctor" : "Patient";
-        await _userManager.AddToRoleAsync(user, role);
+        var roleResult = await _userManager.AddToRoleAsync(user, role);
+        if (!roleResult.Succeeded)
+        {
+            var errors = roleResult.Errors.Select(error => error.Description);
+            throw new BadRequestException(string.Join("; ", errors));
+        }
 
         // Create profile based on role
         if (role == "Patient")
@@ -116,6 +122,7 @@ public class AuthService : IAuthService
         // Generate tokens
         var accessToken = await GenerateAccessTokenAsync(user);
         var refreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id);
+        await transaction.CommitAsync();
 
         return new AuthResponseDto
         {

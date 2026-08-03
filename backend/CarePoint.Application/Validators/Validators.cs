@@ -16,6 +16,10 @@ public class RegisterValidator : AbstractValidator<RegisterDto>
         RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
         RuleFor(x => x.ConfirmPassword).Equal(x => x.Password).WithMessage("Passwords do not match.");
         RuleFor(x => x.Role).Must(r => r == "Patient" || r == "Doctor").WithMessage("Role must be 'Patient' or 'Doctor'.");
+        RuleFor(x => x.SpecialtyIds)
+            .NotEmpty()
+            .When(x => x.Role == "Doctor")
+            .WithMessage("At least one specialty is required for doctors.");
     }
 }
 

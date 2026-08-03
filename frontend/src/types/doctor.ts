@@ -31,6 +31,13 @@ export interface DoctorDto {
   clinics: ClinicDto[];
 }
 
+export interface DoctorAdminSummaryDto {
+  totalRegistered: number;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+}
+
 export interface UpdateDoctorRequest {
   bio?: string;
   consultationFee?: number;
