@@ -33,7 +33,7 @@ public class MedicalRecordService : IMedicalRecordService
     }
 
     public async Task<PagedResult<MedicalRecordDto>> GetByPatientIdAsync(
-        Guid patientId, string userId, string role, int skip = 0, int take = 50)
+        Guid patientId, string userId, string role, string? search = null, int skip = 0, int take = 50)
     {
         (skip, take) = Pagination.Normalize(skip, take);
         var doctorId = await GetDoctorIdForPatientHistoryAsync(patientId, userId, role);
@@ -47,6 +47,16 @@ public class MedicalRecordService : IMedicalRecordService
         if (doctorId.HasValue)
             query = query.Where(r => r.Appointment.DoctorProfileId == doctorId.Value);
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(record =>
+                record.Diagnosis.Contains(search) ||
+                (record.Treatment != null && record.Treatment.Contains(search)) ||
+                (record.Notes != null && record.Notes.Contains(search)) ||
+                _context.Users.Any(user => user.Id == record.Appointment.DoctorProfile.UserId &&
+                    (user.FirstName + " " + user.LastName).Contains(search)));
+        }
+
         var totalCount = await query.CountAsync();
         var records = await query.OrderByDescending(r => r.CreatedAt)
             .Skip(skip).Take(take).ToListAsync();
@@ -54,13 +64,14 @@ public class MedicalRecordService : IMedicalRecordService
             await MapManyToDtoAsync(records), totalCount, skip, take);
     }
 
-    public async Task<PagedResult<MedicalRecordDto>> GetMyHistoryAsync(string userId, int skip = 0, int take = 50)
+    public async Task<PagedResult<MedicalRecordDto>> GetMyHistoryAsync(
+        string userId, string? search = null, int skip = 0, int take = 50)
     {
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
         (skip, take) = Pagination.Normalize(skip, take);
         if (patient == null)
             return PagedResult<MedicalRecordDto>.Create(Array.Empty<MedicalRecordDto>(), 0, skip, take);
-        return await GetByPatientIdAsync(patient.Id, userId, "Patient", skip, take);
+        return await GetByPatientIdAsync(patient.Id, userId, "Patient", search, skip, take);
     }
 
     public async Task<MedicalRecordDto> CreateAsync(string userId, CreateMedicalRecordDto dto)

@@ -5,6 +5,7 @@ using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Application.DTOs.Common;
+using CarePoint.Domain.Common;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -46,7 +47,8 @@ public class PrescriptionService : IPrescriptionService
             await MapManyToDtoAsync(prescriptions), totalCount, skip, take);
     }
 
-    public async Task<PagedResult<PrescriptionDto>> GetMyPrescriptionsAsync(string userId, int skip = 0, int take = 50)
+    public async Task<PagedResult<PrescriptionDto>> GetMyPrescriptionsAsync(
+        string userId, string? search = null, int skip = 0, int take = 50)
     {
         (skip, take) = Pagination.Normalize(skip, take);
         var patient = await _context.PatientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
@@ -57,6 +59,14 @@ public class PrescriptionService : IPrescriptionService
             .Include(p => p.Items)
             .AsNoTracking()
             .Where(p => p.PatientProfileId == patient.Id);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(prescription =>
+                (prescription.Notes != null && prescription.Notes.Contains(search)) ||
+                prescription.Items.Any(item => item.MedicationName.Contains(search)) ||
+                _context.Users.Any(user => user.Id == prescription.DoctorProfile.UserId &&
+                    (user.FirstName + " " + user.LastName).Contains(search)));
+        }
         var totalCount = await query.CountAsync();
         var prescriptions = await query
             .OrderByDescending(p => p.CreatedAt)
@@ -149,7 +159,8 @@ public class PrescriptionService : IPrescriptionService
         if (role == "Doctor")
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor != null && appointment.DoctorProfileId == doctor.Id)
+            if (doctor != null && ClinicalAccessRules.CanDoctorAccessAppointment(
+                    doctor.Id, appointment.DoctorProfileId))
                 return;
         }
 

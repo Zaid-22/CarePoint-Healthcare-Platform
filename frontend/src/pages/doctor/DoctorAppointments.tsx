@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { AppointmentDto, MedicalRecordDto, ApiResponse } from '../../types';
 import { FileTextIcon } from '../../components/common/Icons';
+import PaginationControls from '../../components/common/PaginationControls';
+
+const PAGE_SIZE = 20;
 
 export default function DoctorAppointments() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState<'record' | 'prescription' | 'history' | null>(null);
   const [selectedApp, setSelectedApp] = useState<AppointmentDto | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Patient history modal state
   const [patientHistory, setPatientHistory] = useState<MedicalRecordDto[]>([]);
@@ -22,20 +27,23 @@ export default function DoctorAppointments() {
   const [dosage, setDosage] = useState('');
   const [freq, setFreq] = useState('');
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     try {
-      const res = await api.get<ApiResponse<AppointmentDto[]>>('/appointments/my-appointments');
+      const res = await api.get<ApiResponse<AppointmentDto[]>>(
+        `/appointments/my-appointments?skip=${skip}&take=${PAGE_SIZE}`,
+      );
       setAppointments(res.data.data || []);
+      setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
     } catch (e) {
       console.error('Failed to fetch doctor appointments', e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [skip]);
 
   useEffect(() => {
     fetchAppointments();
-  }, []);
+  }, [fetchAppointments]);
 
   const openHistoryModal = async (app: AppointmentDto) => {
     setSelectedApp(app);
@@ -182,6 +190,12 @@ export default function DoctorAppointments() {
             );
           })
         )}
+        <PaginationControls
+          skip={skip}
+          take={PAGE_SIZE}
+          totalCount={totalCount}
+          onPageChange={setSkip}
+        />
       </div>
 
       {/* Modal overlays */}

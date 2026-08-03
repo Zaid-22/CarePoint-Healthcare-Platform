@@ -8,6 +8,7 @@ using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Common;
+using CarePoint.Domain.Common;
 
 namespace CarePoint.Infrastructure.Services;
 

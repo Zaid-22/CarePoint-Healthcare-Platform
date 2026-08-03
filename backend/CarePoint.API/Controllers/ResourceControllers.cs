@@ -27,21 +27,23 @@ public class MedicalRecordsController : ControllerBase
 
     [HttpGet("patient/{patientId:guid}")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetByPatient(
-        Guid patientId, [FromQuery] int skip = 0, [FromQuery] int take = 50)
+        Guid patientId, [FromQuery] string? search = null,
+        [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
-        var page = await _service.GetByPatientIdAsync(patientId, userId, role, skip, take);
+        var page = await _service.GetByPatientIdAsync(patientId, userId, role, search, skip, take);
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.PagedSuccessResponse(page));
     }
 
     [Authorize(Roles = "Patient")]
     [HttpGet("my-history")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetMyHistory(
+        [FromQuery] string? search = null,
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var page = await _service.GetMyHistoryAsync(userId, skip, take);
+        var page = await _service.GetMyHistoryAsync(userId, search, skip, take);
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.PagedSuccessResponse(page));
     }
 
@@ -93,10 +95,11 @@ public class PrescriptionsController : ControllerBase
     [Authorize(Roles = "Patient")]
     [HttpGet("my-prescriptions")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionDto>>>> GetMyPrescriptions(
+        [FromQuery] string? search = null,
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var page = await _service.GetMyPrescriptionsAsync(userId, skip, take);
+        var page = await _service.GetMyPrescriptionsAsync(userId, search, skip, take);
         return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.PagedSuccessResponse(page));
     }
 

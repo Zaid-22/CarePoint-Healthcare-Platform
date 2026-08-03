@@ -41,29 +41,13 @@ public class AppointmentService : IAppointmentService
         return await MapToDtoAsync(appointment);
     }
 
-    public async Task<PagedResult<AppointmentDto>> GetAllAsync(string userId, string role, int skip = 0, int take = 50)
+    public async Task<PagedResult<AppointmentDto>> GetAllAsync(
+        string userId, string role, string? statusGroup = null, DateTime? date = null,
+        int skip = 0, int take = 50)
     {
         (skip, take) = Pagination.Normalize(skip, take);
-        IQueryable<Appointment> query = _context.Appointments.AsNoTracking();
-
-        if (role == "Patient")
-        {
-            var patient = await _context.PatientProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId);
-            if (patient == null)
-                return PagedResult<AppointmentDto>.Create(Array.Empty<AppointmentDto>(), 0, skip, take);
-            query = query.Where(a => a.PatientProfileId == patient.Id);
-        }
-        else if (role == "Doctor")
-        {
-            var doctor = await _context.DoctorProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor == null)
-                return PagedResult<AppointmentDto>.Create(Array.Empty<AppointmentDto>(), 0, skip, take);
-            query = query.Where(a => a.DoctorProfileId == doctor.Id);
-        }
-        else if (role != "Admin")
-        {
-            throw new ForbiddenException();
-        }
+        var query = await GetAccessibleQueryAsync(userId, role);
+        query = ApplyListFilters(query, statusGroup, date);
 
         var totalCount = await query.CountAsync();
         var items = await query
@@ -90,6 +74,20 @@ public class AppointmentService : IAppointmentService
             })
             .ToListAsync();
         return PagedResult<AppointmentDto>.Create(items, totalCount, skip, take);
+    }
+
+    public async Task<AppointmentSummaryDto> GetSummaryAsync(string userId, string role)
+    {
+        var query = await GetAccessibleQueryAsync(userId, role);
+        var clinicToday = _clinicClock.LocalNow.Date;
+        return new AppointmentSummaryDto
+        {
+            TotalCount = await query.CountAsync(),
+            PendingCount = await query.CountAsync(a => a.Status == AppointmentStatus.Pending),
+            UpcomingCount = await query.CountAsync(a =>
+                a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Accepted),
+            TodayCount = await query.CountAsync(a => a.AppointmentDate.Date == clinicToday)
+        };
     }
 
     public async Task<AppointmentDto> CreateAsync(string userId, CreateAppointmentDto dto)
@@ -315,6 +313,54 @@ public class AppointmentService : IAppointmentService
 
         if (conflict)
             throw new ConflictException("This time slot is already booked. Please select a different time slot.");
+    }
+
+    private async Task<IQueryable<Appointment>> GetAccessibleQueryAsync(string userId, string role)
+    {
+        IQueryable<Appointment> query = _context.Appointments.AsNoTracking();
+        if (role == "Patient")
+        {
+            var patientId = await _context.PatientProfiles.AsNoTracking()
+                .Where(profile => profile.UserId == userId)
+                .Select(profile => (Guid?)profile.Id)
+                .FirstOrDefaultAsync();
+            return patientId.HasValue
+                ? query.Where(appointment => appointment.PatientProfileId == patientId.Value)
+                : query.Where(_ => false);
+        }
+
+        if (role == "Doctor")
+        {
+            var doctorId = await _context.DoctorProfiles.AsNoTracking()
+                .Where(profile => profile.UserId == userId)
+                .Select(profile => (Guid?)profile.Id)
+                .FirstOrDefaultAsync();
+            return doctorId.HasValue
+                ? query.Where(appointment => appointment.DoctorProfileId == doctorId.Value)
+                : query.Where(_ => false);
+        }
+
+        if (role == "Admin") return query;
+        throw new ForbiddenException();
+    }
+
+    private static IQueryable<Appointment> ApplyListFilters(
+        IQueryable<Appointment> query, string? statusGroup, DateTime? date)
+    {
+        query = statusGroup?.ToLowerInvariant() switch
+        {
+            "upcoming" => query.Where(a => a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Accepted),
+            "completed" => query.Where(a => a.Status == AppointmentStatus.Completed),
+            "cancelled" => query.Where(a => a.Status == AppointmentStatus.Rejected ||
+                                            a.Status == AppointmentStatus.Cancelled ||
+                                            a.Status == AppointmentStatus.NoShow),
+            null or "" or "all" => query,
+            _ => throw new BadRequestException("Invalid appointment status filter.")
+        };
+
+        return date.HasValue
+            ? query.Where(appointment => appointment.AppointmentDate.Date == date.Value.Date)
+            : query;
     }
 
     private void ValidateDateAndTime(DateTime appointmentDate, TimeOnly startTime, TimeOnly endTime)

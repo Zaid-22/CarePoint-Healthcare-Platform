@@ -1,28 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { AppointmentDto, ApiResponse } from '../../types';
 import { CalendarIcon, ClockIcon } from '../../components/common/Icons';
+import PaginationControls from '../../components/common/PaginationControls';
+
+const PAGE_SIZE = 20;
 
 export default function MyAppointments() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     try {
-      const res = await api.get<ApiResponse<AppointmentDto[]>>('/appointments/my-appointments');
+      const res = await api.get<ApiResponse<AppointmentDto[]>>(
+        `/appointments/my-appointments?statusGroup=${filter}&skip=${skip}&take=${PAGE_SIZE}`,
+      );
       setAppointments(res.data.data || []);
+      setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
     } catch (e) {
       console.error('Failed to fetch appointments', e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter, skip]);
 
   useEffect(() => {
     fetchAppointments();
-  }, []);
+  }, [fetchAppointments]);
 
   const handleCancel = async (id: string) => {
     const reason = prompt('Please enter a cancellation reason:');
@@ -48,12 +56,7 @@ export default function MyAppointments() {
     6: { label: 'No Show', badge: 'badge-stone' },
   };
 
-  const filtered = appointments.filter((app) => {
-    if (filter === 'upcoming') return app.status === 0 || app.status === 1;
-    if (filter === 'completed') return app.status === 4;
-    if (filter === 'cancelled') return app.status === 2 || app.status === 5 || app.status === 6;
-    return true;
-  });
+  const filtered = appointments;
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -71,7 +74,7 @@ export default function MyAppointments() {
             key={tab}
             className={`btn ${filter === tab ? 'btn-primary' : 'btn-ghost'}`}
             style={{ textTransform: 'capitalize', fontSize: '0.875rem' }}
-            onClick={() => setFilter(tab)}
+            onClick={() => { setFilter(tab); setSkip(0); }}
           >
             {tab}
           </button>
@@ -136,6 +139,12 @@ export default function MyAppointments() {
             );
           })
         )}
+        <PaginationControls
+          skip={skip}
+          take={PAGE_SIZE}
+          totalCount={totalCount}
+          onPageChange={setSkip}
+        />
       </div>
     </div>
   );

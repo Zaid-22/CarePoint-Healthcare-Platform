@@ -2,19 +2,28 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { PrescriptionDto, ApiResponse } from '../../types';
 import { PillIcon, DoctorIcon, CalendarIcon, SearchIcon, ClockIcon, InfoIcon, HourglassIcon } from '../../components/common/Icons';
+import PaginationControls from '../../components/common/PaginationControls';
+
+const PAGE_SIZE = 20;
 
 export default function MyPrescriptionsPage() {
   const [prescriptions, setPrescriptions] = useState<PrescriptionDto[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     async function fetchPrescriptions() {
       try {
         setLoading(true);
-        const res = await api.get<ApiResponse<PrescriptionDto[]>>('/prescriptions/my-prescriptions');
+        const params = new URLSearchParams({
+          skip: String(skip), take: String(PAGE_SIZE), search: searchQuery,
+        });
+        const res = await api.get<ApiResponse<PrescriptionDto[]>>(`/prescriptions/my-prescriptions?${params}`);
         setPrescriptions(res.data.data || []);
+        setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
       } catch (err: any) {
         console.error('Failed to load prescriptions', err);
         setError(err.response?.data?.message || 'Failed to load digital prescriptions.');
@@ -23,15 +32,9 @@ export default function MyPrescriptionsPage() {
       }
     }
     fetchPrescriptions();
-  }, []);
+  }, [searchQuery, skip]);
 
-  const filtered = prescriptions.filter((p) => {
-    const q = searchQuery.toLowerCase();
-    const hasMed = p.items.some((i) => i.medicationName.toLowerCase().includes(q));
-    const hasDoc = p.doctorName && p.doctorName.toLowerCase().includes(q);
-    const hasNotes = p.notes && p.notes.toLowerCase().includes(q);
-    return hasMed || hasDoc || hasNotes;
-  });
+  const filtered = prescriptions;
 
   return (
     <div className="page-enter" style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -69,12 +72,12 @@ export default function MyPrescriptionsPage() {
             type="text"
             placeholder="Search by medication name, doctor, or notes..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setSkip(0); }}
             style={{ paddingLeft: 42 }}
           />
         </div>
         <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-          {filtered.length} prescriptions
+          {totalCount} prescriptions
         </span>
       </div>
 
@@ -177,6 +180,12 @@ export default function MyPrescriptionsPage() {
               </div>
             </div>
           ))}
+          <PaginationControls
+            skip={skip}
+            take={PAGE_SIZE}
+            totalCount={totalCount}
+            onPageChange={setSkip}
+          />
         </div>
       )}
     </div>

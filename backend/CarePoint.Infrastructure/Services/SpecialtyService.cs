@@ -4,6 +4,7 @@ using CarePoint.Application.Interfaces;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -15,20 +16,20 @@ public class SpecialtyService : ISpecialtyService
 
     public async Task<IReadOnlyList<SpecialtyDto>> GetAllAsync()
     {
-        var specialties = await _context.Specialties
-            .Include(s => s.DoctorSpecialties)
+        return await _context.Specialties
+            .AsNoTracking()
             .Where(s => s.IsActive)
             .OrderBy(s => s.Name)
+            .Select(s => new SpecialtyDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Description = s.Description,
+                IsActive = s.IsActive,
+                DoctorCount = s.DoctorSpecialties.Count(link =>
+                    link.DoctorProfile.ApprovalStatus == DoctorApprovalStatus.Approved)
+            })
             .ToListAsync();
-
-        return specialties.Select(s => new SpecialtyDto
-        {
-            Id = s.Id,
-            Name = s.Name,
-            Description = s.Description,
-            IsActive = s.IsActive,
-            DoctorCount = s.DoctorSpecialties.Count
-        }).ToList();
     }
 
     public async Task<SpecialtyDto> GetByIdAsync(Guid id)

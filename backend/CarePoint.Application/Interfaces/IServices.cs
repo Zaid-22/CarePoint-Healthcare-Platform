@@ -41,7 +41,10 @@ public interface IDoctorService
 public interface IAppointmentService
 {
     Task<AppointmentDto> GetByIdAsync(Guid id, string userId, string role);
-    Task<PagedResult<AppointmentDto>> GetAllAsync(string userId, string role, int skip = 0, int take = 50);
+    Task<PagedResult<AppointmentDto>> GetAllAsync(
+        string userId, string role, string? statusGroup = null, DateTime? date = null,
+        int skip = 0, int take = 50);
+    Task<AppointmentSummaryDto> GetSummaryAsync(string userId, string role);
     Task<AppointmentDto> CreateAsync(string userId, CreateAppointmentDto dto);
     Task<AppointmentDto> UpdateStatusAsync(Guid id, string userId, string role, UpdateAppointmentStatusDto dto);
     Task<AppointmentDto> RescheduleAsync(Guid id, string userId, RescheduleAppointmentDto dto);
@@ -60,8 +63,10 @@ public interface IPatientService
 public interface IMedicalRecordService
 {
     Task<MedicalRecordDto> GetByIdAsync(Guid id, string userId, string role);
-    Task<PagedResult<MedicalRecordDto>> GetByPatientIdAsync(Guid patientId, string userId, string role, int skip = 0, int take = 50);
-    Task<PagedResult<MedicalRecordDto>> GetMyHistoryAsync(string userId, int skip = 0, int take = 50);
+    Task<PagedResult<MedicalRecordDto>> GetByPatientIdAsync(
+        Guid patientId, string userId, string role, string? search = null, int skip = 0, int take = 50);
+    Task<PagedResult<MedicalRecordDto>> GetMyHistoryAsync(
+        string userId, string? search = null, int skip = 0, int take = 50);
     Task<MedicalRecordDto> CreateAsync(string userId, CreateMedicalRecordDto dto);
     Task<MedicalRecordDto> UpdateAsync(Guid id, string userId, UpdateMedicalRecordDto dto);
 }
@@ -70,7 +75,8 @@ public interface IPrescriptionService
 {
     Task<PrescriptionDto> GetByIdAsync(Guid id, string userId, string role);
     Task<PagedResult<PrescriptionDto>> GetByAppointmentIdAsync(Guid appointmentId, string userId, string role, int skip = 0, int take = 50);
-    Task<PagedResult<PrescriptionDto>> GetMyPrescriptionsAsync(string userId, int skip = 0, int take = 50);
+    Task<PagedResult<PrescriptionDto>> GetMyPrescriptionsAsync(
+        string userId, string? search = null, int skip = 0, int take = 50);
     Task<PrescriptionDto> CreateAsync(string userId, CreatePrescriptionDto dto);
     Task<PrescriptionDto> UpdateAsync(Guid id, string userId, CreatePrescriptionDto dto);
 }

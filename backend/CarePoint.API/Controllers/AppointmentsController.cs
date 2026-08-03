@@ -22,12 +22,22 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [HttpGet("my-appointments")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<AppointmentDto>>>> GetAll(
+        [FromQuery] string? statusGroup = null, [FromQuery] DateTime? date = null,
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var role = User.FindFirstValue(ClaimTypes.Role)!;
-        var result = await _appointmentService.GetAllAsync(userId, role, skip, take);
+        var result = await _appointmentService.GetAllAsync(userId, role, statusGroup, date, skip, take);
         return Ok(ApiResponse<IReadOnlyList<AppointmentDto>>.PagedSuccessResponse(result));
+    }
+
+    [HttpGet("summary")]
+    public async Task<ActionResult<ApiResponse<AppointmentSummaryDto>>> GetSummary()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+        return Ok(ApiResponse<AppointmentSummaryDto>.SuccessResponse(
+            await _appointmentService.GetSummaryAsync(userId, role)));
     }
 
     [HttpGet("{id:guid}")]

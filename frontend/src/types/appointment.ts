@@ -20,3 +20,10 @@ export interface CreateAppointmentRequest {
   endTime: string;
   notes?: string;
 }
+
+export interface AppointmentSummaryDto {
+  totalCount: number;
+  pendingCount: number;
+  upcomingCount: number;
+  todayCount: number;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
-import type { AppointmentDto, NotificationDto, PatientDto, ApiResponse } from '../../types';
+import type { AppointmentDto, AppointmentSummaryDto, NotificationDto, PatientDto, ApiResponse } from '../../types';
 import { CalendarIcon, ClockIcon } from '../../components/common/Icons';
 
 export default function PatientDashboard() {
@@ -9,16 +9,21 @@ export default function PatientDashboard() {
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [profile, setProfile] = useState<PatientDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<AppointmentSummaryDto>({
+    totalCount: 0, pendingCount: 0, upcomingCount: 0, todayCount: 0,
+  });
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [appRes, notifRes, profileRes] = await Promise.all([
-          api.get<ApiResponse<AppointmentDto[]>>('/appointments/my-appointments'),
+        const [appRes, summaryRes, notifRes, profileRes] = await Promise.all([
+          api.get<ApiResponse<AppointmentDto[]>>('/appointments/my-appointments?statusGroup=upcoming&take=10'),
+          api.get<ApiResponse<AppointmentSummaryDto>>('/appointments/summary'),
           api.get<ApiResponse<NotificationDto[]>>('/notifications'),
           api.get<ApiResponse<PatientDto>>('/patients/me').catch(() => null),
         ]);
         setAppointments(appRes.data.data || []);
+        setSummary(summaryRes.data.data);
         setNotifications(notifRes.data.data || []);
         if (profileRes?.data.data) {
           setProfile(profileRes.data.data);
@@ -78,7 +83,7 @@ export default function PatientDashboard() {
             Upcoming Visits
           </span>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.25rem', fontWeight: 700, marginTop: 8 }}>
-            {upcoming.length}
+            {summary.upcomingCount}
           </div>
         </div>
 
@@ -87,7 +92,7 @@ export default function PatientDashboard() {
             Total Appointments
           </span>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.25rem', fontWeight: 700, marginTop: 8 }}>
-            {appointments.length}
+            {summary.totalCount}
           </div>
         </div>
 

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { DoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } from '../../types';
 import { getClinicDateString } from '../../utils/clinicTime';
+import PaginationControls from '../../components/common/PaginationControls';
+
+const PAGE_SIZE = 20;
 
 export default function FindDoctors() {
   const [doctors, setDoctors] = useState<DoctorDto[]>([]);
@@ -15,24 +18,39 @@ export default function FindDoctors() {
   const [notes, setNotes] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
-    async function loadData() {
+    async function loadSpecialties() {
       try {
-        const [docRes, specRes] = await Promise.all([
-          api.get<ApiResponse<DoctorDto[]>>('/doctors'),
-          api.get<ApiResponse<SpecialtyDto[]>>('/specialties'),
-        ]);
-        setDoctors(docRes.data.data || []);
+        const specRes = await api.get<ApiResponse<SpecialtyDto[]>>('/specialties');
         setSpecialties(specRes.data.data || []);
+      } catch (e) {
+        console.error('Failed to load specialties', e);
+      }
+    }
+    loadSpecialties();
+  }, []);
+
+  useEffect(() => {
+    async function loadDoctors() {
+      try {
+        setLoading(true);
+        const specialtyName = specialties.find((specialty) => specialty.id === selectedSpecialty)?.name;
+        const params = new URLSearchParams({ skip: String(skip), take: String(PAGE_SIZE) });
+        if (specialtyName) params.set('specialty', specialtyName);
+        const docRes = await api.get<ApiResponse<DoctorDto[]>>(`/doctors?${params.toString()}`);
+        setDoctors(docRes.data.data || []);
+        setTotalCount(docRes.data.pagination?.totalCount ?? docRes.data.data?.length ?? 0);
       } catch (e) {
         console.error('Failed to load doctors', e);
       } finally {
         setLoading(false);
       }
     }
-    loadData();
-  }, []);
+    loadDoctors();
+  }, [selectedSpecialty, skip, specialties]);
 
   const handleSelectDoctor = async (doc: DoctorDto) => {
     setSelectedDoctor(doc);
@@ -74,9 +92,7 @@ export default function FindDoctors() {
     }
   };
 
-  const filteredDoctors = selectedSpecialty
-    ? doctors.filter((d) => d.specialties?.some((s) => s.id === selectedSpecialty))
-    : doctors;
+  const filteredDoctors = doctors;
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -102,7 +118,7 @@ export default function FindDoctors() {
           {selectedSpecialty && (
             <button
               className="btn btn-ghost"
-              onClick={() => setSelectedSpecialty('')}
+              onClick={() => { setSelectedSpecialty(''); setSkip(0); }}
               style={{ fontSize: '0.8125rem', color: 'var(--accent)' }}
             >
               Clear Filter
@@ -118,16 +134,16 @@ export default function FindDoctors() {
             className={`btn ${selectedSpecialty === '' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ padding: '6px 14px', borderRadius: 20, fontSize: '0.8125rem', fontWeight: 500 }}
           >
-            All Specialties ({doctors.length})
+            All Specialties{!selectedSpecialty ? ` (${totalCount})` : ''}
           </button>
           {specialties.map((s) => {
             const isSelected = selectedSpecialty === s.id;
-            const docCount = doctors.filter(d => d.specialties?.some(sp => sp.id === s.id)).length;
+            const docCount = s.doctorCount ?? 0;
             return (
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setSelectedSpecialty(isSelected ? '' : s.id)}
+              onClick={() => { setSelectedSpecialty(isSelected ? '' : s.id); setSkip(0); }}
                 style={{
                   padding: '6px 14px',
                   borderRadius: 20,
@@ -206,6 +222,12 @@ export default function FindDoctors() {
               </div>
             ))
           )}
+          <PaginationControls
+            skip={skip}
+            take={PAGE_SIZE}
+            totalCount={totalCount}
+            onPageChange={(nextSkip) => { setSkip(nextSkip); setSelectedDoctor(null); }}
+          />
         </div>
 
         {/* Slot booking drawer */}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { DoctorDto, DoctorAdminSummaryDto, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
@@ -23,11 +23,7 @@ export default function AdminDashboard() {
     rejectedCount: 0,
   });
 
-  useEffect(() => {
-    fetchDoctors();
-  }, [filter, skip]);
-
-  const fetchDoctors = async () => {
+  const fetchDoctors = useCallback(async () => {
     try {
       setLoading(true);
       const status = filter === 'all'
@@ -46,7 +42,11 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter, skip]);
+
+  useEffect(() => {
+    fetchDoctors();
+  }, [fetchDoctors]);
 
   const handleApprove = async (id: string) => {
     setActionSuccess(null);

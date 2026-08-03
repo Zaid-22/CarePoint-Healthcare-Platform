@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
-import type { AppointmentDto, DoctorDto, ApiResponse } from '../../types';
+import type { AppointmentDto, AppointmentSummaryDto, DoctorDto, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
 import { ClockIcon } from '../../components/common/Icons';
 import { getClinicDateString } from '../../utils/clinicTime';
@@ -9,15 +9,21 @@ export default function DoctorDashboard() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
   const [profile, setProfile] = useState<DoctorDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<AppointmentSummaryDto>({
+    totalCount: 0, pendingCount: 0, upcomingCount: 0, todayCount: 0,
+  });
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [appsRes, profileRes] = await Promise.all([
-          api.get<ApiResponse<AppointmentDto[]>>('/appointments/my-appointments'),
+        const clinicDate = getClinicDateString();
+        const [appsRes, summaryRes, profileRes] = await Promise.all([
+          api.get<ApiResponse<AppointmentDto[]>>(`/appointments/my-appointments?date=${clinicDate}&take=100`),
+          api.get<ApiResponse<AppointmentSummaryDto>>('/appointments/summary'),
           api.get<ApiResponse<DoctorDto>>('/doctors/me').catch(() => null),
         ]);
         setAppointments(appsRes.data.data || []);
+        setSummary(summaryRes.data.data);
         if (profileRes?.data.data) {
           setProfile(profileRes.data.data);
         }
@@ -32,7 +38,6 @@ export default function DoctorDashboard() {
 
   const todayStr = getClinicDateString();
   const todayApps = appointments.filter((a) => a.appointmentDate && a.appointmentDate.startsWith(todayStr));
-  const pendingApps = appointments.filter((a) => a.status === 0);
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -60,7 +65,7 @@ export default function DoctorDashboard() {
             Today's Patients
           </span>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.25rem', fontWeight: 700, marginTop: 8 }}>
-            {todayApps.length}
+            {summary.todayCount}
           </div>
         </div>
 
@@ -69,7 +74,7 @@ export default function DoctorDashboard() {
             Pending Confirmations
           </span>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.25rem', fontWeight: 700, marginTop: 8, color: 'var(--color-amber-500)' }}>
-            {pendingApps.length}
+            {summary.pendingCount}
           </div>
         </div>
 
@@ -78,7 +83,7 @@ export default function DoctorDashboard() {
             Total Consultations
           </span>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.25rem', fontWeight: 700, marginTop: 8 }}>
-            {appointments.length}
+            {summary.totalCount}
           </div>
         </div>
       </div>

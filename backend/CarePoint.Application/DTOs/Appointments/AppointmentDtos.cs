@@ -2,6 +2,14 @@ using CarePoint.Domain.Enums;
 
 namespace CarePoint.Application.DTOs.Appointments;
 
+public sealed class AppointmentSummaryDto
+{
+    public int TotalCount { get; set; }
+    public int PendingCount { get; set; }
+    public int UpcomingCount { get; set; }
+    public int TodayCount { get; set; }
+}
+
 public class AppointmentDto
 {
     public Guid Id { get; set; }

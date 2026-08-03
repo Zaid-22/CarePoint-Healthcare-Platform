@@ -2,19 +2,28 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { MedicalRecordDto, ApiResponse } from '../../types';
 import { FileTextIcon, SearchIcon, DoctorIcon, CalendarIcon, PillIcon } from '../../components/common/Icons';
+import PaginationControls from '../../components/common/PaginationControls';
+
+const PAGE_SIZE = 20;
 
 export default function MedicalHistoryPage() {
   const [records, setRecords] = useState<MedicalRecordDto[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     async function fetchHistory() {
       try {
         setLoading(true);
-        const res = await api.get<ApiResponse<MedicalRecordDto[]>>('/medicalrecords/my-history');
+        const params = new URLSearchParams({
+          skip: String(skip), take: String(PAGE_SIZE), search: searchQuery,
+        });
+        const res = await api.get<ApiResponse<MedicalRecordDto[]>>(`/medicalrecords/my-history?${params}`);
         setRecords(res.data.data || []);
+        setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
       } catch (err: any) {
         console.error('Failed to load medical history', err);
         setError(err.response?.data?.message || 'Failed to load medical records.');
@@ -23,17 +32,9 @@ export default function MedicalHistoryPage() {
       }
     }
     fetchHistory();
-  }, []);
+  }, [searchQuery, skip]);
 
-  const filteredRecords = records.filter((r) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      r.diagnosis.toLowerCase().includes(q) ||
-      (r.treatment && r.treatment.toLowerCase().includes(q)) ||
-      (r.doctorName && r.doctorName.toLowerCase().includes(q)) ||
-      (r.notes && r.notes.toLowerCase().includes(q))
-    );
-  });
+  const filteredRecords = records;
 
   return (
     <div className="page-enter" style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -71,12 +72,12 @@ export default function MedicalHistoryPage() {
             type="text"
             placeholder="Search by diagnosis, doctor, or treatment..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setSkip(0); }}
             style={{ paddingLeft: 42 }}
           />
         </div>
         <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-          {filteredRecords.length} records found
+          {totalCount} records found
         </span>
       </div>
 
@@ -157,6 +158,12 @@ export default function MedicalHistoryPage() {
               )}
             </div>
           ))}
+          <PaginationControls
+            skip={skip}
+            take={PAGE_SIZE}
+            totalCount={totalCount}
+            onPageChange={setSkip}
+          />
         </div>
       )}
     </div>
