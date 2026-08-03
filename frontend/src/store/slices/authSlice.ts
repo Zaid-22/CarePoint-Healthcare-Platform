@@ -79,10 +79,13 @@ const getSavedUser = (): AuthUser | null => {
   }
 };
 
+const savedUser = getSavedUser();
+const savedAccessToken = localStorage.getItem('accessToken');
+
 const initialState: AuthState = {
-  user: getSavedUser(),
-  accessToken: localStorage.getItem('accessToken'),
-  isAuthenticated: !!localStorage.getItem('accessToken'),
+  user: savedUser,
+  accessToken: savedAccessToken,
+  isAuthenticated: !!savedAccessToken && !!savedUser,
   loading: false,
   error: null,
 };

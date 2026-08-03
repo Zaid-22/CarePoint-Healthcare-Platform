@@ -35,4 +35,27 @@ public class AppointmentStatusTransitionsTests
     {
         Assert.True(AppointmentStatusTransitions.CanAdminTransition(current, requested));
     }
+
+    [Theory]
+    [InlineData(AppointmentStatus.Pending, true)]
+    [InlineData(AppointmentStatus.Accepted, true)]
+    [InlineData(AppointmentStatus.InProgress, false)]
+    [InlineData(AppointmentStatus.Completed, false)]
+    [InlineData(AppointmentStatus.Cancelled, false)]
+    [InlineData(AppointmentStatus.Rejected, false)]
+    [InlineData(AppointmentStatus.NoShow, false)]
+    public void PatientReschedule_DoesNotReopenTerminalOrStartedAppointments(
+        AppointmentStatus status, bool expected)
+    {
+        Assert.Equal(expected, AppointmentStatusTransitions.CanPatientReschedule(status));
+    }
+
+    [Theory]
+    [InlineData("Patient")]
+    [InlineData("Doctor")]
+    [InlineData("Admin")]
+    public void NoShow_CannotBeRewrittenAsCancelled(string role)
+    {
+        Assert.False(AppointmentStatusTransitions.CanCancel(AppointmentStatus.NoShow, role));
+    }
 }

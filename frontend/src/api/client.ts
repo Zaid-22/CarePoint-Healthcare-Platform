@@ -15,6 +15,7 @@ const clearStoredAuth = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('user');
+  window.dispatchEvent(new Event('carepoint:auth-cleared'));
 };
 
 const rotateRefreshToken = async (expectedRefreshToken: string): Promise<string> => {
@@ -78,6 +79,9 @@ api.interceptors.response.use(
           clearStoredAuth();
           window.location.href = '/login';
         }
+      } else {
+        clearStoredAuth();
+        if (window.location.pathname !== '/login') window.location.href = '/login';
       }
     }
     return Promise.reject(error);

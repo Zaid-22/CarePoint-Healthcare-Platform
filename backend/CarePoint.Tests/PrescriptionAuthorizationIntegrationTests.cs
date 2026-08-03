@@ -3,6 +3,7 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.Tests;
 
@@ -13,15 +14,24 @@ public class PrescriptionAuthorizationIntegrationTests
     {
         await using var context = CreateContext();
         var patient = new PatientProfile { UserId = "patient-user" };
-        var requestingDoctor = new DoctorProfile { UserId = "requesting-doctor" };
-        var assignedDoctor = new DoctorProfile { UserId = "assigned-doctor" };
+        var requestingDoctor = new DoctorProfile
+        {
+            UserId = "requesting-doctor",
+            ApprovalStatus = DoctorApprovalStatus.Approved
+        };
+        var assignedDoctor = new DoctorProfile
+        {
+            UserId = "assigned-doctor",
+            ApprovalStatus = DoctorApprovalStatus.Approved
+        };
         var priorAppointment = new Appointment
         {
             PatientProfile = patient,
             DoctorProfile = requestingDoctor,
             AppointmentDate = new DateTime(2026, 8, 1),
             StartTime = new TimeOnly(9, 0),
-            EndTime = new TimeOnly(9, 30)
+            EndTime = new TimeOnly(9, 30),
+            Status = AppointmentStatus.Completed
         };
         var protectedAppointment = new Appointment
         {
@@ -29,7 +39,8 @@ public class PrescriptionAuthorizationIntegrationTests
             DoctorProfile = assignedDoctor,
             AppointmentDate = new DateTime(2026, 8, 2),
             StartTime = new TimeOnly(9, 0),
-            EndTime = new TimeOnly(9, 30)
+            EndTime = new TimeOnly(9, 30),
+            Status = AppointmentStatus.Completed
         };
 
         context.AddRange(patient, requestingDoctor, assignedDoctor, priorAppointment, protectedAppointment);

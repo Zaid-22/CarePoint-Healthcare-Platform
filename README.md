@@ -6,21 +6,23 @@ CarePoint is a modern, enterprise-grade healthcare management and specialist app
 
 ## Features & Role Portals
 
-### Doctor Portal (`/doctor/dashboard`, `/doctor/profile`)
+### Doctor Portal (`/doctor/dashboard`, `/doctor/appointments`, `/doctor/profile`)
 - **Working Hours & Availability Manager**: Configure custom weekly consultation shifts by day of the week, start/end times, and slot duration (15, 20, 30, 45, or 60 minutes).
 - **Practice Details**: Set consultation pricing in Jordanian Dinar (JOD), update bio, phone number, and upload high-resolution profile portraits.
 - **Specialty Selection**: Multi-select clinical specialty tags for practitioner directory indexing.
 - **Patient Schedule**: Real-time view of today's scheduled consultations and pending patient requests.
+- **Clinical Workspace**: Approved practitioners can manage records, prescriptions, and appointment-linked medical documents.
 
 ### Administrator Portal (`/admin/dashboard`, `/admin/specialties`)
 - **Practitioner Credential Verification**: Review new doctor applications with 1-click Approve or Reject workflows.
 - **System Analytics**: Real-time dashboard tracking total registered practitioners, pending applications, verified doctors, and active medical categories.
 - **Clinical Specialty Management**: Add, edit, or deactivate medical specialties quietly in the background without UI lag.
 
-### Patient Portal (`/dashboard`, `/find-doctors`, `/my-appointments`)
+### Patient Portal (`/dashboard`, `/find-doctors`, `/my-appointments`, `/medical-history`, `/my-prescriptions`, `/my-documents`, `/my-profile`)
 - **Specialist Search**: Filter accredited doctors by clinical specialty, practitioner name, and consultation fees in JOD.
-- **Strict Real-Time Booking**: View available 30-minute booking slots based on real-time doctor working hours with instant conflict detection.
+- **Strict Real-Time Booking**: View configurable 10–120-minute booking slots based on doctor working hours with instant conflict detection.
 - **Personalized Health Dashboard**: View upcoming appointments, booking history, and personal health metrics.
+- **Private Document Vault**: Upload PDF and image documents, optionally sharing them with the approved doctor for an active or completed appointment.
 - **Real-Time Notification Drawer**: High-contrast, top-anchored popover for instant appointment status alerts.
 
 ---
@@ -29,7 +31,7 @@ CarePoint is a modern, enterprise-grade healthcare management and specialist app
 
 | Layer | Technologies Used |
 | :--- | :--- |
-| **Frontend** | React 18, TypeScript, Vite, Redux Toolkit, Vanilla CSS Design System |
+| **Frontend** | React 19, TypeScript, Vite, Redux Toolkit, responsive Vanilla CSS Design System |
 | **Backend** | ASP.NET Core 10.0 Web API, Clean Architecture |
 | **Database & ORM** | Entity Framework Core, SQL Server |
 | **Authentication** | ASP.NET Core Identity, JWT Bearer Tokens, Role-Based Access Control (`Admin`, `Doctor`, `Patient`) |
@@ -76,6 +78,8 @@ The command applies migrations, creates the required `Admin`, `Doctor`, and `Pat
 
 Medical documents are stored outside the public web root and streamed through authorized API endpoints. Mount persistent storage at the configured `MedicalDocuments__StoragePath`; the included Docker Compose stack uses the `medical-documents` volume automatically.
 
+Doctors retain access to clinical data only while their account is approved and only through accepted, in-progress, or completed appointments assigned to them. Rejection revokes active refresh sessions. Appointment status writes use optimistic concurrency so conflicting updates return HTTP `409` instead of silently overwriting one another.
+
 ### Run the complete development stack
 
 ```bash
@@ -109,6 +113,16 @@ After configuring `.env`, start all three containers with:
 
 ```bash
 docker compose up --build
+```
+
+The SQL Server container includes a readiness check. The API waits for a healthy database before applying local-development migrations, so first startup can take several seconds.
+
+### Verification
+
+```bash
+dotnet test backend/CarePoint.Tests/CarePoint.Tests.csproj
+npm --prefix frontend run lint
+npm --prefix frontend run build
 ```
 
 ---

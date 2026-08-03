@@ -15,10 +15,12 @@ export default function MyDocumentsPage() {
     ])
       .then(([patientResponse, appointmentResponse]) => {
         setPatientId(patientResponse.data.data.id);
-        setAppointmentOptions((appointmentResponse.data.data ?? []).map((appointment) => ({
-          id: appointment.id,
-          label: `${appointment.doctorName} · ${new Date(appointment.appointmentDate).toLocaleDateString()}`,
-        })));
+        setAppointmentOptions((appointmentResponse.data.data ?? [])
+          .filter((appointment) => [1, 3, 4].includes(appointment.status))
+          .map((appointment) => ({
+            id: appointment.id,
+            label: `${appointment.doctorName} · ${new Date(appointment.appointmentDate).toLocaleDateString()}`,
+          })));
       })
       .catch(() => setFailed(true));
   }, []);
