@@ -87,6 +87,15 @@ public class CreateDoctorValidator : AbstractValidator<CreateDoctorDto>
     }
 }
 
+public class UpdateDoctorValidator : AbstractValidator<UpdateDoctorDto>
+{
+    public UpdateDoctorValidator()
+    {
+        RuleFor(x => x.ConsultationFee).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.SpecialtyIds).NotEmpty().WithMessage("At least one specialty is required.");
+    }
+}
+
 public class CreateAvailabilityValidator : AbstractValidator<CreateAvailabilityDto>
 {
     public CreateAvailabilityValidator()

@@ -167,23 +167,23 @@ public class DoctorService : IDoctorService
         doctor.Gender = dto.Gender;
         doctor.ProfilePictureUrl = dto.ProfilePictureUrl;
 
-        // Update specialties safely
-        _context.DoctorSpecialties.RemoveRange(doctor.DoctorSpecialties);
-        if (dto.SpecialtyIds != null && dto.SpecialtyIds.Count > 0)
-        {
-            var validSpecialties = await _context.Specialties
-                .Where(s => dto.SpecialtyIds.Contains(s.Id))
-                .Select(s => s.Id)
-                .ToListAsync();
+        var requestedSpecialtyIds = dto.SpecialtyIds.Distinct().ToList();
+        var validSpecialties = await _context.Specialties
+            .Where(s => s.IsActive && requestedSpecialtyIds.Contains(s.Id))
+            .Select(s => s.Id)
+            .ToListAsync();
 
-            foreach (var specialtyId in validSpecialties)
+        if (validSpecialties.Count != requestedSpecialtyIds.Count)
+            throw new BadRequestException("One or more selected specialties are invalid or inactive.");
+
+        _context.DoctorSpecialties.RemoveRange(doctor.DoctorSpecialties);
+        foreach (var specialtyId in validSpecialties)
+        {
+            _context.DoctorSpecialties.Add(new DoctorSpecialty
             {
-                _context.DoctorSpecialties.Add(new DoctorSpecialty
-                {
-                    DoctorProfileId = doctor.Id,
-                    SpecialtyId = specialtyId
-                });
-            }
+                DoctorProfileId = doctor.Id,
+                SpecialtyId = specialtyId
+            });
         }
 
         await _context.SaveChangesAsync();

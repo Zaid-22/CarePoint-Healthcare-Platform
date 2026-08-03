@@ -13,6 +13,7 @@ using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
+using System.Data;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -170,16 +171,23 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         var storedToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == dto.RefreshToken)
+            .AsNoTracking()
+            .Where(rt => rt.Token == dto.RefreshToken)
+            .Select(rt => new { rt.Id, rt.UserId })
+            .FirstOrDefaultAsync()
             ?? throw new BadRequestException("Invalid refresh token.");
 
-        if (storedToken.IsRevoked || storedToken.ExpiresAt < DateTime.UtcNow)
-            throw new BadRequestException("Refresh token has expired or been revoked.");
+        var revokedAt = DateTime.UtcNow;
+        var affected = await _context.RefreshTokens
+            .Where(rt => rt.Id == storedToken.Id && !rt.IsRevoked && rt.ExpiresAt >= revokedAt)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(rt => rt.IsRevoked, true)
+                .SetProperty(rt => rt.RevokedAt, revokedAt));
 
-        // Revoke old token (rotation)
-        storedToken.IsRevoked = true;
-        storedToken.RevokedAt = DateTime.UtcNow;
+        if (affected != 1)
+            throw new BadRequestException("Refresh token has expired or been revoked.");
 
         var user = await _userManager.FindByIdAsync(storedToken.UserId)
             ?? throw new NotFoundException("User", storedToken.UserId);
@@ -190,8 +198,10 @@ public class AuthService : IAuthService
         var accessToken = await GenerateAccessTokenAsync(user);
         var newRefreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id);
 
-        storedToken.ReplacedByToken = newRefreshToken.Token;
-        await _context.SaveChangesAsync();
+        await _context.RefreshTokens
+            .Where(rt => rt.Id == storedToken.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(rt => rt.ReplacedByToken, newRefreshToken.Token));
+        await transaction.CommitAsync();
 
         return new AuthResponseDto
         {
@@ -209,15 +219,12 @@ public class AuthService : IAuthService
 
     public async Task LogoutAsync(string userId, string refreshToken)
     {
-        var storedToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
-
-        if (storedToken != null && storedToken.UserId == userId)
-        {
-            storedToken.IsRevoked = true;
-            storedToken.RevokedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
+        var revokedAt = DateTime.UtcNow;
+        await _context.RefreshTokens
+            .Where(rt => rt.Token == refreshToken && rt.UserId == userId && !rt.IsRevoked)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(rt => rt.IsRevoked, true)
+                .SetProperty(rt => rt.RevokedAt, revokedAt));
     }
 
     public async Task ChangePasswordAsync(string userId, ChangePasswordDto dto)
@@ -329,18 +336,12 @@ public class AuthService : IAuthService
 
     private async Task RevokeActiveRefreshTokensAsync(string userId)
     {
-        var activeTokens = await _context.RefreshTokens
+        var revokedAt = DateTime.UtcNow;
+        await _context.RefreshTokens
             .Where(token => token.UserId == userId && !token.IsRevoked)
-            .ToListAsync();
-
-        foreach (var token in activeTokens)
-        {
-            token.IsRevoked = true;
-            token.RevokedAt = DateTime.UtcNow;
-        }
-
-        if (activeTokens.Count > 0)
-            await _context.SaveChangesAsync();
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(token => token.IsRevoked, true)
+                .SetProperty(token => token.RevokedAt, revokedAt));
     }
 
     private string CreatePasswordResetUrl(string email, string token)

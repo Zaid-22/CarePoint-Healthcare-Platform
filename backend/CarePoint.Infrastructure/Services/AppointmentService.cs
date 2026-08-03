@@ -142,8 +142,8 @@ public class AppointmentService : IAppointmentService
         }
         else if (role == "Admin")
         {
-            if (dto.Status == AppointmentStatus.Pending)
-                throw new BadRequestException("Appointments cannot be moved back to pending.");
+            if (!IsValidAdminStatusTransition(appointment.Status, dto.Status))
+                throw new BadRequestException("This appointment status transition is not allowed.");
         }
         else
         {
@@ -161,7 +161,7 @@ public class AppointmentService : IAppointmentService
             AppointmentStatus.Accepted => NotificationType.AppointmentAccepted,
             AppointmentStatus.Rejected => NotificationType.AppointmentRejected,
             AppointmentStatus.Cancelled => NotificationType.AppointmentCancelled,
-            _ => NotificationType.AppointmentBooked
+            _ => NotificationType.SystemAlert
         };
 
         await _notificationService.CreateNotificationAsync(
@@ -294,6 +294,15 @@ public class AppointmentService : IAppointmentService
             (AppointmentStatus.Accepted, AppointmentStatus.InProgress) => true,
             (AppointmentStatus.Accepted, AppointmentStatus.Completed) => true,
             (AppointmentStatus.InProgress, AppointmentStatus.Completed) => true,
+            _ => false
+        };
+
+    private static bool IsValidAdminStatusTransition(AppointmentStatus current, AppointmentStatus requested) =>
+        (current, requested) switch
+        {
+            (AppointmentStatus.Pending, AppointmentStatus.Accepted or AppointmentStatus.Rejected or AppointmentStatus.Cancelled) => true,
+            (AppointmentStatus.Accepted, AppointmentStatus.InProgress or AppointmentStatus.Completed or AppointmentStatus.Cancelled or AppointmentStatus.NoShow) => true,
+            (AppointmentStatus.InProgress, AppointmentStatus.Completed or AppointmentStatus.Cancelled or AppointmentStatus.NoShow) => true,
             _ => false
         };
 
