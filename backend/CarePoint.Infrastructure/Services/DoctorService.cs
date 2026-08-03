@@ -9,6 +9,7 @@ using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
+using System.Data;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -371,6 +372,7 @@ public class DoctorService : IDoctorService
 
     public async Task<DoctorAvailabilityDto> UpdateAvailabilityAsync(Guid doctorId, Guid slotId, string userId, CreateAvailabilityDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles.FindAsync(doctorId)
             ?? throw new NotFoundException("Doctor", doctorId);
         if (doctor.UserId != userId)
@@ -390,6 +392,7 @@ public class DoctorService : IDoctorService
         slot.EndTime = dto.EndTime;
         slot.SlotDurationMinutes = dto.SlotDurationMinutes;
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return new DoctorAvailabilityDto
         {
@@ -401,6 +404,7 @@ public class DoctorService : IDoctorService
 
     public async Task DeleteAvailabilityAsync(Guid doctorId, Guid slotId, string userId)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles.FindAsync(doctorId)
             ?? throw new NotFoundException("Doctor", doctorId);
         if (doctor.UserId != userId)
@@ -414,6 +418,7 @@ public class DoctorService : IDoctorService
         await EnsureBookedAppointmentsRemainCoveredAsync(doctorId, slotId, replacement: null);
         _context.DoctorAvailabilities.Remove(slot);
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 
     public async Task<IReadOnlyList<AvailableSlotDto>> GetAvailableSlotsAsync(Guid doctorId, DateTime date)

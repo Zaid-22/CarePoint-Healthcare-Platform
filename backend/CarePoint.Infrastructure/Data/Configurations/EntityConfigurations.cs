@@ -234,6 +234,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.HasIndex(rt => rt.TokenHash).IsUnique();
         builder.HasIndex(rt => rt.UserId);
         builder.HasIndex(rt => rt.FamilyId);
+        builder.Property(rt => rt.FamilyId).HasDefaultValueSql("NEWID()");
         builder.Property(rt => rt.TokenHash).HasColumnName("Token").IsRequired().HasMaxLength(64);
         builder.Property(rt => rt.ReplacedByTokenHash).HasColumnName("ReplacedByToken").HasMaxLength(64);
         builder.Property(rt => rt.CreatedByIp).HasMaxLength(50);
