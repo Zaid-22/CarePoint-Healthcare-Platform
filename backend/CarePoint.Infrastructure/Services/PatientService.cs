@@ -7,7 +7,6 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using CarePoint.Application.DTOs.Common;
-using CarePoint.Domain.Common;
 using CarePoint.Domain.Enums;
 
 namespace CarePoint.Infrastructure.Services;

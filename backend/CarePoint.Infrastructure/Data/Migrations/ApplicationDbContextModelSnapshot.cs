@@ -52,6 +52,7 @@ namespace CarePoint.Infrastructure.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<byte[]>("RowVersion")
+                        .IsRequired()
                         .IsRowVersion()
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()

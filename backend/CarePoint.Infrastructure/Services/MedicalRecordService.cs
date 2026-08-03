@@ -86,8 +86,8 @@ public class MedicalRecordService : IMedicalRecordService
 
         var appointment = await _context.Appointments.FindAsync(dto.AppointmentId)
             ?? throw new NotFoundException("Appointment", dto.AppointmentId);
-        if (!ClinicalAccessRules.CanDoctorAccessClinicalData(
-                doctor.Id, appointment.DoctorProfileId, doctor.ApprovalStatus, appointment.Status))
+        if (doctor.ApprovalStatus != DoctorApprovalStatus.Approved ||
+            !ClinicalAccessRules.CanDoctorAccessAppointment(doctor.Id, appointment.DoctorProfileId))
             throw new ForbiddenException("Only an approved treating doctor can create this record.");
         if (appointment.Status is not (AppointmentStatus.Accepted or AppointmentStatus.InProgress or AppointmentStatus.Completed))
             throw new BadRequestException("A medical record can only be created for an accepted or completed appointment.");
