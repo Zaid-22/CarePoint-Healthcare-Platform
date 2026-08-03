@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using CarePoint.Domain.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace CarePoint.API.Middleware;
 
@@ -40,6 +41,8 @@ public class GlobalExceptionMiddleware
             BadRequestException => (HttpStatusCode.BadRequest, exception.Message),
             ForbiddenException => (HttpStatusCode.Forbidden, exception.Message),
             ConflictException => (HttpStatusCode.Conflict, exception.Message),
+            DbUpdateConcurrencyException => (HttpStatusCode.Conflict,
+                "This record was changed by another request. Reload it and try again."),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized access."),
             _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.")
         };

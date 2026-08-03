@@ -226,7 +226,7 @@ public class AppointmentService : IAppointmentService
         if (patient == null || appointment.PatientProfileId != patient.Id)
             throw new ForbiddenException();
 
-        if (appointment.Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled or AppointmentStatus.Rejected)
+        if (!AppointmentStatusTransitions.CanPatientReschedule(appointment.Status))
             throw new BadRequestException("This appointment can no longer be rescheduled.");
 
         await EnsureSlotIsAvailableAsync(
@@ -262,7 +262,7 @@ public class AppointmentService : IAppointmentService
             ?? throw new NotFoundException("Appointment", id);
 
         ValidateAccess(appointment, userId, role);
-        if (appointment.Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled or AppointmentStatus.Rejected)
+        if (!AppointmentStatusTransitions.CanCancel(appointment.Status, role))
             throw new BadRequestException("This appointment can no longer be cancelled.");
 
         appointment.Status = AppointmentStatus.Cancelled;
@@ -289,8 +289,10 @@ public class AppointmentService : IAppointmentService
         if (role == "Admin") return;
         if (role == "Patient" && appointment.PatientProfile?.UserId != userId)
             throw new ForbiddenException();
-        if (role == "Doctor" && appointment.DoctorProfile?.UserId != userId)
-            throw new ForbiddenException();
+        if (role == "Doctor" &&
+            (appointment.DoctorProfile?.UserId != userId ||
+             appointment.DoctorProfile.ApprovalStatus != DoctorApprovalStatus.Approved))
+            throw new ForbiddenException("Only approved doctors can access clinical appointments.");
         if (role is not ("Admin" or "Patient" or "Doctor"))
             throw new ForbiddenException();
     }
@@ -345,7 +347,8 @@ public class AppointmentService : IAppointmentService
         if (role == "Doctor")
         {
             var doctorId = await _context.DoctorProfiles.AsNoTracking()
-                .Where(profile => profile.UserId == userId)
+                .Where(profile => profile.UserId == userId &&
+                    profile.ApprovalStatus == DoctorApprovalStatus.Approved)
                 .Select(profile => (Guid?)profile.Id)
                 .FirstOrDefaultAsync();
             return doctorId.HasValue

@@ -119,6 +119,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.Notes).HasMaxLength(2000);
         builder.Property(a => a.CancellationReason).HasMaxLength(500);
+        builder.Property(a => a.RowVersion).IsRowVersion();
 
         builder.HasOne(a => a.PatientProfile)
             .WithMany(p => p.Appointments)

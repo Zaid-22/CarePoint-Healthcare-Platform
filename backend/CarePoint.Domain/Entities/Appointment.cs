@@ -21,6 +21,7 @@ public class Appointment : BaseEntity
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
     public string? Notes { get; set; }
     public string? CancellationReason { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     // Navigation properties
     public MedicalRecord? MedicalRecord { get; set; }

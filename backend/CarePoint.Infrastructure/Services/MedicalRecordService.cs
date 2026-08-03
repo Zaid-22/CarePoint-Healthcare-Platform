@@ -7,6 +7,8 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using CarePoint.Application.DTOs.Common;
+using CarePoint.Domain.Common;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -45,7 +47,10 @@ public class MedicalRecordService : IMedicalRecordService
 
         // A doctor may only review records from appointments they personally handled.
         if (doctorId.HasValue)
-            query = query.Where(r => r.Appointment.DoctorProfileId == doctorId.Value);
+            query = query.Where(r => r.Appointment.DoctorProfileId == doctorId.Value &&
+                (r.Appointment.Status == AppointmentStatus.Accepted ||
+                 r.Appointment.Status == AppointmentStatus.InProgress ||
+                 r.Appointment.Status == AppointmentStatus.Completed));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -81,9 +86,10 @@ public class MedicalRecordService : IMedicalRecordService
 
         var appointment = await _context.Appointments.FindAsync(dto.AppointmentId)
             ?? throw new NotFoundException("Appointment", dto.AppointmentId);
-        if (appointment.DoctorProfileId != doctor.Id)
-            throw new ForbiddenException("You can only create records for your own appointments.");
-        if (appointment.Status is not (Domain.Enums.AppointmentStatus.Accepted or Domain.Enums.AppointmentStatus.InProgress or Domain.Enums.AppointmentStatus.Completed))
+        if (!ClinicalAccessRules.CanDoctorAccessClinicalData(
+                doctor.Id, appointment.DoctorProfileId, doctor.ApprovalStatus, appointment.Status))
+            throw new ForbiddenException("Only an approved treating doctor can create this record.");
+        if (appointment.Status is not (AppointmentStatus.Accepted or AppointmentStatus.InProgress or AppointmentStatus.Completed))
             throw new BadRequestException("A medical record can only be created for an accepted or completed appointment.");
         if (await _context.MedicalRecords.AnyAsync(r => r.AppointmentId == dto.AppointmentId))
             throw new ConflictException("A medical record already exists for this appointment.");
@@ -110,8 +116,9 @@ public class MedicalRecordService : IMedicalRecordService
 
         var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
             ?? throw new ForbiddenException("Only doctors can update medical records.");
-        if (record.Appointment.DoctorProfileId != doctor.Id)
-            throw new ForbiddenException("You can only update records for your own appointments.");
+        if (!ClinicalAccessRules.CanDoctorAccessClinicalData(
+                doctor.Id, record.Appointment.DoctorProfileId, doctor.ApprovalStatus, record.Appointment.Status))
+            throw new ForbiddenException("Only an approved treating doctor can update this record.");
 
         record.Diagnosis = dto.Diagnosis;
         record.Treatment = dto.Treatment;
@@ -126,7 +133,13 @@ public class MedicalRecordService : IMedicalRecordService
 
         if (role == "Patient" && record.Appointment.PatientProfile.UserId == userId) return;
 
-        if (role == "Doctor" && record.Appointment.DoctorProfile.UserId == userId) return;
+        if (role == "Doctor" &&
+            ClinicalAccessRules.CanDoctorAccessClinicalData(
+                record.Appointment.DoctorProfile.Id,
+                record.Appointment.DoctorProfileId,
+                record.Appointment.DoctorProfile.ApprovalStatus,
+                record.Appointment.Status) &&
+            record.Appointment.DoctorProfile.UserId == userId) return;
 
         throw new ForbiddenException();
     }
@@ -141,8 +154,12 @@ public class MedicalRecordService : IMedicalRecordService
         if (role == "Doctor")
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor != null && await _context.Appointments.AnyAsync(a =>
-                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == patientId))
+            if (doctor?.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                await _context.Appointments.AnyAsync(a =>
+                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == patientId &&
+                    (a.Status == AppointmentStatus.Accepted ||
+                     a.Status == AppointmentStatus.InProgress ||
+                     a.Status == AppointmentStatus.Completed)))
                 return doctor.Id;
         }
 

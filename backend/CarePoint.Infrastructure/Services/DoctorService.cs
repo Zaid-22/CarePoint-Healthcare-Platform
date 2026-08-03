@@ -296,6 +296,12 @@ public class DoctorService : IDoctorService
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
         doctor.ApprovalStatus = DoctorApprovalStatus.Rejected;
+        var revokedAt = DateTime.UtcNow;
+        await _context.RefreshTokens
+            .Where(token => token.UserId == doctor.UserId && !token.IsRevoked)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(token => token.IsRevoked, true)
+                .SetProperty(token => token.RevokedAt, revokedAt));
         await _context.SaveChangesAsync();
 
         await _notificationService.CreateNotificationAsync(

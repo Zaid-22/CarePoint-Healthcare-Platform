@@ -30,10 +30,21 @@ echo "=========================================="
 if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
     echo " Ensuring SQL Server database container is running..."
     docker compose up -d sqlserver 2>/dev/null || docker-compose up -d sqlserver 2>/dev/null
+
+    echo " Waiting for SQL Server to become healthy..."
+    readiness_attempt=0
+    until [ "$(docker inspect --format='{{.State.Health.Status}}' carepoint-sqlserver 2>/dev/null)" = "healthy" ]; do
+        readiness_attempt=$((readiness_attempt + 1))
+        if [ "$readiness_attempt" -ge 60 ]; then
+            echo " SQL Server did not become healthy within two minutes."
+            exit 1
+        fi
+        sleep 2
+    done
 fi
 
 echo ""
-echo "  Starting Backend API (.NET 8)..."
+echo "  Starting Backend API (.NET 10)..."
 dotnet run --project backend/CarePoint.API/CarePoint.API.csproj --launch-profile http &
 BACKEND_PID=$!
 

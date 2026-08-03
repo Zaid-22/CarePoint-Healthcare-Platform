@@ -7,6 +7,8 @@ using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Common;
+using CarePoint.Domain.Common;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -29,7 +31,7 @@ public class DocumentService : IDocumentService
         var doc = await _context.MedicalDocuments
             .Include(d => d.PatientProfile)
             .Include(d => d.Appointment).ThenInclude(a => a!.DoctorProfile)
-            .FirstOrDefaultAsync(d => d.Id == id)
+            .FirstOrDefaultAsync(d => d.Id == id && d.DeletionRequestedAt == null)
             ?? throw new NotFoundException("Document", id);
         EnsureCanRead(doc, userId, role);
         return MapToDto(doc);
@@ -44,7 +46,7 @@ public class DocumentService : IDocumentService
 
         IQueryable<MedicalDocument> query = _context.MedicalDocuments
             .AsNoTracking()
-            .Where(d => d.PatientProfileId == patientId);
+            .Where(d => d.PatientProfileId == patientId && d.DeletionRequestedAt == null);
 
         if (role == "Patient")
         {
@@ -54,7 +56,13 @@ public class DocumentService : IDocumentService
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
                 ?? throw new ForbiddenException();
-            query = query.Where(d => d.AppointmentId != null && d.Appointment!.DoctorProfileId == doctor.Id);
+            if (doctor.ApprovalStatus != DoctorApprovalStatus.Approved)
+                throw new ForbiddenException("Only approved doctors can access clinical documents.");
+            query = query.Where(d => d.AppointmentId != null &&
+                d.Appointment!.DoctorProfileId == doctor.Id &&
+                (d.Appointment.Status == AppointmentStatus.Accepted ||
+                 d.Appointment.Status == AppointmentStatus.InProgress ||
+                 d.Appointment.Status == AppointmentStatus.Completed));
         }
         else if (role != "Admin")
         {
@@ -76,7 +84,7 @@ public class DocumentService : IDocumentService
         var doc = await _context.MedicalDocuments
             .Include(d => d.PatientProfile)
             .Include(d => d.Appointment).ThenInclude(a => a!.DoctorProfile)
-            .FirstOrDefaultAsync(d => d.Id == id)
+            .FirstOrDefaultAsync(d => d.Id == id && d.DeletionRequestedAt == null)
             ?? throw new NotFoundException("Document", id);
         EnsureCanRead(doc, userId, role);
         Stream stream;
@@ -109,7 +117,9 @@ public class DocumentService : IDocumentService
 
         var isPatientOwner = patient.UserId == userId;
         var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
-        var isTreatingDoctor = doctor != null && appointment != null && appointment.DoctorProfileId == doctor.Id;
+        var isTreatingDoctor = doctor != null && appointment != null &&
+            ClinicalAccessRules.CanDoctorAccessClinicalData(
+                doctor.Id, appointment.DoctorProfileId, doctor.ApprovalStatus, appointment.Status);
         if (!isPatientOwner && !isTreatingDoctor && !await IsAdminAsync(userId))
             throw new ForbiddenException("You cannot upload documents for this patient.");
 
@@ -149,9 +159,15 @@ public class DocumentService : IDocumentService
             throw new ForbiddenException("You cannot delete this document.");
 
         var storageKey = doc.FileUrl;
+        if (doc.DeletionRequestedAt == null)
+        {
+            doc.DeletionRequestedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        await _storage.DeleteAsync(storageKey);
         _context.MedicalDocuments.Remove(doc);
         await _context.SaveChangesAsync();
-        await _storage.DeleteAsync(storageKey);
     }
 
     private static MedicalDocumentDto MapToDto(MedicalDocument d) => new()
@@ -171,7 +187,13 @@ public class DocumentService : IDocumentService
     {
         if (role == "Admin") return;
         if (role == "Patient" && document.PatientProfile.UserId == userId) return;
-        if (role == "Doctor" && document.Appointment?.DoctorProfile.UserId == userId) return;
+        if (role == "Doctor" && document.Appointment != null &&
+            document.Appointment.DoctorProfile.UserId == userId &&
+            ClinicalAccessRules.CanDoctorAccessClinicalData(
+                document.Appointment.DoctorProfile.Id,
+                document.Appointment.DoctorProfileId,
+                document.Appointment.DoctorProfile.ApprovalStatus,
+                document.Appointment.Status)) return;
         throw new ForbiddenException();
     }
 

@@ -23,4 +23,5 @@ public class MedicalDocument : BaseEntity
     public string ContentType { get; set; } = "application/octet-stream";
     public string? DocumentType { get; set; }
     public long FileSizeBytes { get; set; }
+    public DateTime? DeletionRequestedAt { get; set; }
 }

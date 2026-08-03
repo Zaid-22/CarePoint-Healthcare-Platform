@@ -6,6 +6,7 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -84,9 +85,10 @@ public class PrescriptionService : IPrescriptionService
 
         var appointment = await _context.Appointments.FindAsync(dto.AppointmentId)
             ?? throw new NotFoundException("Appointment", dto.AppointmentId);
-        if (appointment.DoctorProfileId != doctor.Id)
-            throw new ForbiddenException("You can only issue prescriptions for your own appointments.");
-        if (appointment.Status is not (Domain.Enums.AppointmentStatus.Accepted or Domain.Enums.AppointmentStatus.InProgress or Domain.Enums.AppointmentStatus.Completed))
+        if (doctor.ApprovalStatus != DoctorApprovalStatus.Approved ||
+            !ClinicalAccessRules.CanDoctorAccessAppointment(doctor.Id, appointment.DoctorProfileId))
+            throw new ForbiddenException("Only an approved treating doctor can issue this prescription.");
+        if (appointment.Status is not (AppointmentStatus.Accepted or AppointmentStatus.InProgress or AppointmentStatus.Completed))
             throw new BadRequestException("A prescription can only be issued for an accepted or completed appointment.");
         ValidateItems(dto);
 
@@ -115,13 +117,15 @@ public class PrescriptionService : IPrescriptionService
     {
         var rx = await _context.Prescriptions
             .Include(p => p.Items)
+            .Include(p => p.Appointment)
             .FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new NotFoundException("Prescription", id);
 
         var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
             ?? throw new ForbiddenException("Only doctors can update prescriptions.");
-        if (rx.DoctorProfileId != doctor.Id)
-            throw new ForbiddenException("You can only update prescriptions that you issued.");
+        if (!ClinicalAccessRules.CanDoctorAccessClinicalData(
+                doctor.Id, rx.DoctorProfileId, doctor.ApprovalStatus, rx.Appointment.Status))
+            throw new ForbiddenException("Only an approved treating doctor can update this prescription.");
         ValidateItems(dto);
 
         rx.Notes = dto.Notes;
@@ -159,8 +163,8 @@ public class PrescriptionService : IPrescriptionService
         if (role == "Doctor")
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor != null && ClinicalAccessRules.CanDoctorAccessAppointment(
-                    doctor.Id, appointment.DoctorProfileId))
+            if (doctor != null && ClinicalAccessRules.CanDoctorAccessClinicalData(
+                    doctor.Id, appointment.DoctorProfileId, doctor.ApprovalStatus, appointment.Status))
                 return;
         }
 

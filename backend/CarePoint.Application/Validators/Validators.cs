@@ -3,6 +3,7 @@ using CarePoint.Application.DTOs.Auth;
 using CarePoint.Application.DTOs.Appointments;
 using CarePoint.Application.DTOs.Doctors;
 using CarePoint.Application.DTOs.Medical;
+using CarePoint.Application.DTOs.Patients;
 
 namespace CarePoint.Application.Validators;
 
@@ -76,7 +77,23 @@ public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentDto
         RuleFor(x => x.DoctorProfileId).NotEmpty();
         RuleFor(x => x.AppointmentDate).NotEmpty();
         RuleFor(x => x.StartTime).LessThan(x => x.EndTime).WithMessage("Start time must be before end time.");
+        RuleFor(x => x.Notes).MaximumLength(2000);
     }
+}
+
+public class UpdateAppointmentStatusValidator : AbstractValidator<UpdateAppointmentStatusDto>
+{
+    public UpdateAppointmentStatusValidator()
+    {
+        RuleFor(x => x.Status).IsInEnum();
+        RuleFor(x => x.CancellationReason).MaximumLength(500);
+    }
+}
+
+public class CancelAppointmentValidator : AbstractValidator<CancelAppointmentDto>
+{
+    public CancelAppointmentValidator() =>
+        RuleFor(x => x.CancellationReason).MaximumLength(500);
 }
 
 public class RescheduleAppointmentValidator : AbstractValidator<RescheduleAppointmentDto>
@@ -95,6 +112,9 @@ public class CreateDoctorValidator : AbstractValidator<CreateDoctorDto>
     {
         RuleFor(x => x.ConsultationFee).GreaterThanOrEqualTo(0);
         RuleFor(x => x.SpecialtyIds).NotEmpty().WithMessage("At least one specialty is required.");
+        RuleFor(x => x.Bio).MaximumLength(2000);
+        RuleFor(x => x.PhoneNumber).MaximumLength(20);
+        RuleFor(x => x.Gender).MaximumLength(20);
     }
 }
 
@@ -104,6 +124,9 @@ public class UpdateDoctorValidator : AbstractValidator<UpdateDoctorDto>
     {
         RuleFor(x => x.ConsultationFee).GreaterThanOrEqualTo(0);
         RuleFor(x => x.SpecialtyIds).NotEmpty().WithMessage("At least one specialty is required.");
+        RuleFor(x => x.Bio).MaximumLength(2000);
+        RuleFor(x => x.PhoneNumber).MaximumLength(20);
+        RuleFor(x => x.Gender).MaximumLength(20);
     }
 }
 
@@ -122,6 +145,8 @@ public class CreateMedicalRecordValidator : AbstractValidator<CreateMedicalRecor
     {
         RuleFor(x => x.AppointmentId).NotEmpty();
         RuleFor(x => x.Diagnosis).NotEmpty().MaximumLength(2000);
+        RuleFor(x => x.Notes).MaximumLength(4000);
+        RuleFor(x => x.Treatment).MaximumLength(4000);
     }
 }
 
@@ -140,12 +165,15 @@ public class CreatePrescriptionValidator : AbstractValidator<CreatePrescriptionD
     public CreatePrescriptionValidator()
     {
         RuleFor(x => x.AppointmentId).NotEmpty();
+        RuleFor(x => x.Notes).MaximumLength(2000);
         RuleFor(x => x.Items).NotEmpty().WithMessage("At least one medication is required.");
         RuleForEach(x => x.Items).ChildRules(item =>
         {
             item.RuleFor(i => i.MedicationName).NotEmpty().MaximumLength(200);
             item.RuleFor(i => i.Dosage).NotEmpty().MaximumLength(100);
             item.RuleFor(i => i.Frequency).NotEmpty().MaximumLength(100);
+            item.RuleFor(i => i.Duration).MaximumLength(100);
+            item.RuleFor(i => i.Instructions).MaximumLength(1000);
         });
     }
 }
@@ -155,6 +183,7 @@ public class CreateSpecialtyValidator : AbstractValidator<CreateSpecialtyDto>
     public CreateSpecialtyValidator()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Description).MaximumLength(500);
     }
 }
 
@@ -163,5 +192,20 @@ public class CreateClinicValidator : AbstractValidator<CreateClinicDto>
     public CreateClinicValidator()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Address).MaximumLength(500);
+        RuleFor(x => x.PhoneNumber).MaximumLength(20);
+        RuleFor(x => x.City).MaximumLength(100);
+    }
+}
+
+public class UpdatePatientValidator : AbstractValidator<UpdatePatientDto>
+{
+    public UpdatePatientValidator()
+    {
+        RuleFor(x => x.BloodType).MaximumLength(10);
+        RuleFor(x => x.PhoneNumber).MaximumLength(20);
+        RuleFor(x => x.Gender).MaximumLength(20);
+        RuleFor(x => x.Address).MaximumLength(500);
+        RuleFor(x => x.EmergencyContact).MaximumLength(100);
     }
 }

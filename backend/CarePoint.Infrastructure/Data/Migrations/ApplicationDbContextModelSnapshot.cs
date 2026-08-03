@@ -51,6 +51,12 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.Property<Guid>("PatientProfileId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsRowVersion()
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<TimeOnly>("StartTime")
                         .HasColumnType("time");
 
@@ -270,6 +276,9 @@ namespace CarePoint.Infrastructure.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletionRequestedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ContentType")

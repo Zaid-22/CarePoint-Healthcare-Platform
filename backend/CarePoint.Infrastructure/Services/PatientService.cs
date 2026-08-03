@@ -7,6 +7,8 @@ using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using CarePoint.Application.DTOs.Common;
+using CarePoint.Domain.Common;
+using CarePoint.Domain.Enums;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -31,8 +33,12 @@ public class PatientService : IPatientService
             var doctor = role == "Doctor"
                 ? await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
                 : null;
-            if (doctor == null || !await _context.Appointments.AnyAsync(a =>
-                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == patient.Id))
+            if (doctor?.ApprovalStatus != DoctorApprovalStatus.Approved ||
+                !await _context.Appointments.AnyAsync(a =>
+                    a.DoctorProfileId == doctor.Id && a.PatientProfileId == patient.Id &&
+                    (a.Status == AppointmentStatus.Accepted ||
+                     a.Status == AppointmentStatus.InProgress ||
+                     a.Status == AppointmentStatus.Completed)))
                 throw new ForbiddenException();
         }
 
