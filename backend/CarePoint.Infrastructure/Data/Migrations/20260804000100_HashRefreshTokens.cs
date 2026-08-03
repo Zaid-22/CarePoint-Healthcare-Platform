@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 #nullable disable
 
 namespace CarePoint.Infrastructure.Data.Migrations;
 
+[DbContext(typeof(ApplicationDbContext))]
 [Migration("20260804000100_HashRefreshTokens")]
 public partial class HashRefreshTokens : Migration
 {
@@ -20,6 +22,10 @@ public partial class HashRefreshTokens : Migration
             WHERE [ReplacedByToken] IS NOT NULL
               AND (LEN([ReplacedByToken]) <> 64 OR [ReplacedByToken] LIKE '%[^0-9A-Fa-f]%');
             """);
+
+        migrationBuilder.DropIndex(
+            name: "IX_RefreshTokens_Token",
+            table: "RefreshTokens");
 
         migrationBuilder.AlterColumn<string>(
             name: "Token",
@@ -41,10 +47,20 @@ public partial class HashRefreshTokens : Migration
             oldType: "nvarchar(500)",
             oldMaxLength: 500,
             oldNullable: true);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_RefreshTokens_Token",
+            table: "RefreshTokens",
+            column: "Token",
+            unique: true);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropIndex(
+            name: "IX_RefreshTokens_Token",
+            table: "RefreshTokens");
+
         migrationBuilder.AlterColumn<string>(
             name: "Token",
             table: "RefreshTokens",
@@ -65,5 +81,11 @@ public partial class HashRefreshTokens : Migration
             oldType: "nvarchar(64)",
             oldMaxLength: 64,
             oldNullable: true);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_RefreshTokens_Token",
+            table: "RefreshTokens",
+            column: "Token",
+            unique: true);
     }
 }

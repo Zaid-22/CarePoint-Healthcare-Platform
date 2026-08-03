@@ -237,6 +237,7 @@ public class AuthService : IAuthService
 
     public async Task ChangePasswordAsync(string userId, ChangePasswordDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var user = await _userManager.FindByIdAsync(userId)
             ?? throw new NotFoundException("User", userId);
 
@@ -248,6 +249,7 @@ public class AuthService : IAuthService
         }
 
         await RevokeActiveRefreshTokensAsync(user.Id);
+        await transaction.CommitAsync();
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordDto dto)
@@ -263,6 +265,7 @@ public class AuthService : IAuthService
 
     public async Task ResetPasswordAsync(ResetPasswordDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var user = await _userManager.FindByEmailAsync(dto.Email)
             ?? throw new BadRequestException("Invalid request.");
 
@@ -274,6 +277,7 @@ public class AuthService : IAuthService
         }
 
         await RevokeActiveRefreshTokensAsync(user.Id);
+        await transaction.CommitAsync();
     }
 
     public async Task<AuthResponseDto> GetCurrentUserAsync(string userId)
