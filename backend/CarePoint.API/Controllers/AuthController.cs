@@ -12,11 +12,14 @@ namespace CarePoint.API.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
+    private const string RefreshCookieName = "CarePoint.Refresh";
     private readonly IAuthService _authService;
+    private readonly IWebHostEnvironment _environment;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IWebHostEnvironment environment)
     {
         _authService = authService;
+        _environment = environment;
     }
 
     /// <summary>
@@ -26,8 +29,10 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Register([FromBody] RegisterDto dto)
     {
-        var result = await _authService.RegisterAsync(dto);
-        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(result, "Registration successful."));
+        var session = await _authService.RegisterAsync(dto);
+        SetRefreshCookie(session);
+        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(
+            session.Response, "Registration successful."));
     }
 
     /// <summary>
@@ -37,8 +42,10 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Login([FromBody] LoginDto dto)
     {
-        var result = await _authService.LoginAsync(dto);
-        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(result, "Login successful."));
+        var session = await _authService.LoginAsync(dto);
+        SetRefreshCookie(session);
+        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(
+            session.Response, "Login successful."));
     }
 
     /// <summary>
@@ -46,10 +53,25 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("refresh-token")]
     [EnableRateLimiting("auth")]
-    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> RefreshToken([FromBody] RefreshTokenRequestDto dto)
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> RefreshToken()
     {
-        var result = await _authService.RefreshTokenAsync(dto);
-        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(result));
+        if (!Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken) ||
+            string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new UnauthorizedAccessException("No active session.");
+        }
+
+        try
+        {
+            var session = await _authService.RefreshTokenAsync(refreshToken);
+            SetRefreshCookie(session);
+            return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(session.Response));
+        }
+        catch
+        {
+            ClearRefreshCookie();
+            throw;
+        }
     }
 
     /// <summary>
@@ -57,9 +79,14 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("logout")]
     [EnableRateLimiting("auth")]
-    public async Task<ActionResult<ApiResponse<string>>> Logout([FromBody] RefreshTokenRequestDto dto)
+    public async Task<ActionResult<ApiResponse<string>>> Logout()
     {
-        await _authService.LogoutAsync(dto.RefreshToken);
+        if (Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken) &&
+            !string.IsNullOrWhiteSpace(refreshToken))
+        {
+            await _authService.LogoutAsync(refreshToken);
+        }
+        ClearRefreshCookie();
         return Ok(ApiResponse<string>.SuccessResponse("Logged out successfully."));
     }
 
@@ -107,5 +134,30 @@ public class AuthController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var result = await _authService.GetCurrentUserAsync(userId);
         return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(result));
+    }
+
+    private void SetRefreshCookie(AuthSessionDto session)
+    {
+        Response.Cookies.Append(RefreshCookieName, session.RefreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !_environment.IsDevelopment() || Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api/auth",
+            Expires = session.RefreshTokenExpiration,
+            IsEssential = true
+        });
+    }
+
+    private void ClearRefreshCookie()
+    {
+        Response.Cookies.Delete(RefreshCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !_environment.IsDevelopment() || Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api/auth",
+            IsEssential = true
+        });
     }
 }

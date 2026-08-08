@@ -35,15 +35,6 @@ public class DoctorValidatorTests
     }
 
     [Fact]
-    public void RefreshToken_RejectsEmptyToken()
-    {
-        var result = new RefreshTokenRequestValidator().Validate(new RefreshTokenRequestDto());
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.PropertyName == nameof(RefreshTokenRequestDto.RefreshToken));
-    }
-
-    [Fact]
     public void RegisterDoctor_RejectsNegativeFeeAndOversizedOrInlineProfileData()
     {
         var result = new RegisterValidator().Validate(new RegisterDto

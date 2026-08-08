@@ -44,7 +44,7 @@ public class AuthService : IAuthService
         _passwordResetEmailSender = passwordResetEmailSender;
     }
 
-    public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
+    public async Task<AuthSessionDto> RegisterAsync(RegisterDto dto)
     {
         // Check if email already exists
         var existingUser = await _userManager.FindByEmailAsync(dto.Email);
@@ -125,21 +125,25 @@ public class AuthService : IAuthService
         var refreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id);
         await transaction.CommitAsync();
 
-        return new AuthResponseDto
+        return new AuthSessionDto
         {
-            UserId = user.Id,
-            Email = user.Email!,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            Role = role,
-            Roles = new List<string> { role },
-            AccessToken = accessToken,
+            Response = new AuthResponseDto
+            {
+                UserId = user.Id,
+                Email = user.Email!,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = role,
+                Roles = new List<string> { role },
+                AccessToken = accessToken,
+                AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+            },
             RefreshToken = refreshToken.RawToken,
-            AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+            RefreshTokenExpiration = refreshToken.Entity.ExpiresAt
         };
     }
 
-    public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
+    public async Task<AuthSessionDto> LoginAsync(LoginDto dto)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email)
             ?? throw new BadRequestException("Invalid email or password.");
@@ -163,26 +167,30 @@ public class AuthService : IAuthService
         var accessToken = await GenerateAccessTokenAsync(user);
         var refreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id);
 
-        return new AuthResponseDto
+        return new AuthSessionDto
         {
-            UserId = user.Id,
-            Email = user.Email!,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            Role = role,
-            Roles = roles.ToList(),
-            AccessToken = accessToken,
+            Response = new AuthResponseDto
+            {
+                UserId = user.Id,
+                Email = user.Email!,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = role,
+                Roles = roles.ToList(),
+                AccessToken = accessToken,
+                AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+            },
             RefreshToken = refreshToken.RawToken,
-            AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+            RefreshTokenExpiration = refreshToken.Entity.ExpiresAt
         };
     }
 
-    public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto dto)
+    public async Task<AuthSessionDto> RefreshTokenAsync(string refreshToken)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         var storedToken = await _context.RefreshTokens
             .AsNoTracking()
-            .Where(rt => rt.TokenHash == RefreshTokenSecurity.Hash(dto.RefreshToken))
+            .Where(rt => rt.TokenHash == RefreshTokenSecurity.Hash(refreshToken))
             .Select(rt => new { rt.Id, rt.UserId, rt.FamilyId, rt.IsRevoked, rt.ExpiresAt })
             .FirstOrDefaultAsync()
             ?? throw new BadRequestException("Invalid refresh token.");
@@ -226,17 +234,21 @@ public class AuthService : IAuthService
                 rt => rt.ReplacedByTokenHash, newRefreshToken.Entity.TokenHash));
         await transaction.CommitAsync();
 
-        return new AuthResponseDto
+        return new AuthSessionDto
         {
-            UserId = user.Id,
-            Email = user.Email!,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            Role = role,
-            Roles = roles.ToList(),
-            AccessToken = accessToken,
+            Response = new AuthResponseDto
+            {
+                UserId = user.Id,
+                Email = user.Email!,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = role,
+                Roles = roles.ToList(),
+                AccessToken = accessToken,
+                AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+            },
             RefreshToken = newRefreshToken.RawToken,
-            AccessTokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+            RefreshTokenExpiration = newRefreshToken.Entity.ExpiresAt
         };
     }
 

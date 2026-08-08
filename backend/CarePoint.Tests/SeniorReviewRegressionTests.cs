@@ -70,6 +70,13 @@ public class SeniorReviewRegressionTests
             RefreshTokenSecurity.Hash("abc"));
     }
 
+    [Fact]
+    public void PublicAuthenticationResponseNeverContainsRefreshToken()
+    {
+        Assert.DoesNotContain(typeof(AuthResponseDto).GetProperties(),
+            property => property.Name.Contains("RefreshToken", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(true, 1, true)]
     [InlineData(false, 0, true)]

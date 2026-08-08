@@ -11,12 +11,10 @@ window.addEventListener('carepoint:auth-cleared', () => {
   store.dispatch(logout());
 });
 
-window.addEventListener('storage', (event) => {
-  if (['accessToken', 'refreshToken', 'user'].includes(event.key ?? '') &&
-      !localStorage.getItem('accessToken')) {
-    store.dispatch(logout());
-  }
-});
+// Remove credentials persisted by older CarePoint frontend versions.
+localStorage.removeItem('accessToken');
+localStorage.removeItem('refreshToken');
+localStorage.removeItem('user');
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

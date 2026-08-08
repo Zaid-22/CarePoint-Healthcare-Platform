@@ -26,7 +26,6 @@ export interface AuthResponse {
   role?: string;
   roles?: string[];
   accessToken: string;
-  refreshToken: string;
 }
 
 export interface AuthUser {

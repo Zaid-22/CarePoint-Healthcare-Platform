@@ -1,25 +1,48 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../api/client';
+import api, { requestSessionRefresh, setAccessToken } from '../../api/client';
 import type { AuthUser, AuthResponse, LoginRequest, RegisterRequest, ApiResponse } from '../../types';
 
 interface AuthState {
   user: AuthUser | null;
-  accessToken: string | null;
   isAuthenticated: boolean;
+  initialized: boolean;
   loading: boolean;
   error: string | null;
 }
+
+export const initializeSession = createAsyncThunk<
+  AuthResponse,
+  void,
+  { rejectValue: string; state: { auth: AuthState } }
+>(
+  'auth/initializeSession',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await requestSessionRefresh();
+    } catch {
+      setAccessToken(null);
+      return rejectWithValue('No active session');
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const auth = getState().auth;
+      return !auth.initialized && !auth.loading;
+    },
+  },
+);
 
 export const login = createAsyncThunk<AuthResponse, LoginRequest, { rejectValue: string }>(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
     try {
       const { data } = await api.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
+      setAccessToken(data.data.accessToken);
       return data.data;
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || 'Login failed');
     }
-  }
+  },
 );
 
 export const register = createAsyncThunk<AuthResponse, RegisterRequest, { rejectValue: string }>(
@@ -27,33 +50,32 @@ export const register = createAsyncThunk<AuthResponse, RegisterRequest, { reject
   async (payload, { rejectWithValue }) => {
     try {
       const { data } = await api.post<ApiResponse<AuthResponse>>('/auth/register', payload);
+      setAccessToken(data.data.accessToken);
       return data.data;
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || 'Registration failed');
     }
-  }
+  },
 );
 
 export const logoutFromServer = createAsyncThunk<void, void>(
   'auth/logoutFromServer',
   async (_, { dispatch }) => {
-    const refreshToken = localStorage.getItem('refreshToken');
     try {
-      if (refreshToken) {
-        await api.post('/auth/logout', { refreshToken });
-      }
+      await api.post('/auth/logout');
     } finally {
+      setAccessToken(null);
       dispatch(logout());
     }
-  }
+  },
 );
 
 const extractUser = (payload: AuthResponse): AuthUser => {
   const roles = payload.roles && payload.roles.length > 0
     ? payload.roles
     : payload.role
-    ? [payload.role]
-    : [];
+      ? [payload.role]
+      : [];
 
   return {
     userId: payload.userId,
@@ -65,36 +87,18 @@ const extractUser = (payload: AuthResponse): AuthUser => {
   };
 };
 
-const getSavedUser = (): AuthUser | null => {
-  const savedUser = localStorage.getItem('user');
-  if (!savedUser) return null;
-  try {
-    const parsed = JSON.parse(savedUser);
-    return {
-      ...parsed,
-      roles: parsed.roles && Array.isArray(parsed.roles) ? parsed.roles : (parsed.role ? [parsed.role] : []),
-    };
-  } catch {
-    return null;
-  }
-};
-
-const savedUser = getSavedUser();
-const savedAccessToken = localStorage.getItem('accessToken');
-
 const initialState: AuthState = {
-  user: savedUser,
-  accessToken: savedAccessToken,
-  isAuthenticated: !!savedAccessToken && !!savedUser,
+  user: null,
+  isAuthenticated: false,
+  initialized: false,
   loading: false,
   error: null,
 };
 
-const persistAuth = (payload: AuthResponse) => {
-  const user = extractUser(payload);
-  localStorage.setItem('accessToken', payload.accessToken);
-  localStorage.setItem('refreshToken', payload.refreshToken);
-  localStorage.setItem('user', JSON.stringify(user));
+const applySession = (state: AuthState, payload: AuthResponse) => {
+  state.user = extractUser(payload);
+  state.isAuthenticated = true;
+  state.initialized = true;
 };
 
 const authSlice = createSlice({
@@ -103,12 +107,9 @@ const authSlice = createSlice({
   reducers: {
     logout(state) {
       state.user = null;
-      state.accessToken = null;
       state.isAuthenticated = false;
+      state.initialized = true;
       state.error = null;
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
     },
     clearError(state) {
       state.error = null;
@@ -116,16 +117,26 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(initializeSession.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(initializeSession.fulfilled, (state, { payload }) => {
+        state.loading = false;
+        applySession(state, payload);
+      })
+      .addCase(initializeSession.rejected, (state) => {
+        state.loading = false;
+        state.user = null;
+        state.isAuthenticated = false;
+        state.initialized = true;
+      })
       .addCase(login.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(login.fulfilled, (state, { payload }) => {
         state.loading = false;
-        state.user = extractUser(payload);
-        state.accessToken = payload.accessToken;
-        state.isAuthenticated = true;
-        persistAuth(payload);
+        applySession(state, payload);
       })
       .addCase(login.rejected, (state, { payload }) => {
         state.loading = false;
@@ -137,10 +148,7 @@ const authSlice = createSlice({
       })
       .addCase(register.fulfilled, (state, { payload }) => {
         state.loading = false;
-        state.user = extractUser(payload);
-        state.accessToken = payload.accessToken;
-        state.isAuthenticated = true;
-        persistAuth(payload);
+        applySession(state, payload);
       })
       .addCase(register.rejected, (state, { payload }) => {
         state.loading = false;

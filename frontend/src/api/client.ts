@@ -5,51 +5,47 @@ const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const api = axios.create({
   baseURL,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
 type RetryableRequest = InternalAxiosRequestConfig & { _retry?: boolean };
-let refreshInFlight: Promise<string> | null = null;
+let accessToken: string | null = null;
+let refreshInFlight: Promise<AuthResponse> | null = null;
 
-const clearStoredAuth = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('user');
+export const setAccessToken = (token: string | null) => {
+  accessToken = token;
+};
+
+const clearAuthSession = () => {
+  accessToken = null;
   window.dispatchEvent(new Event('carepoint:auth-cleared'));
 };
 
-const rotateRefreshToken = async (expectedRefreshToken: string): Promise<string> => {
-  const currentRefreshToken = localStorage.getItem('refreshToken');
-  const currentAccessToken = localStorage.getItem('accessToken');
-  if (currentRefreshToken && currentRefreshToken !== expectedRefreshToken && currentAccessToken) {
-    return currentAccessToken;
-  }
-
+const rotateSession = async (): Promise<AuthResponse> => {
   const { data } = await axios.post<ApiResponse<AuthResponse>>(
     `${baseURL}/auth/refresh-token`,
-    { refreshToken: expectedRefreshToken },
+    undefined,
+    { withCredentials: true },
   );
-  localStorage.setItem('accessToken', data.data.accessToken);
-  localStorage.setItem('refreshToken', data.data.refreshToken);
-  return data.data.accessToken;
+  setAccessToken(data.data.accessToken);
+  return data.data;
 };
 
-const refreshAccessToken = (refreshToken: string): Promise<string> => {
+export const requestSessionRefresh = (): Promise<AuthResponse> => {
   if (!refreshInFlight) {
     refreshInFlight = (navigator.locks
-      ? navigator.locks.request('carepoint-refresh-token', () => rotateRefreshToken(refreshToken))
-      : rotateRefreshToken(refreshToken))
+      ? navigator.locks.request('carepoint-refresh-session', rotateSession)
+      : rotateSession())
       .finally(() => {
         refreshInFlight = null;
       });
   }
-
   return refreshInFlight;
 };
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   return config;
 });
 
@@ -61,31 +57,17 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        try {
-          const accessToken = await refreshAccessToken(refreshToken);
-          original.headers.Authorization = `Bearer ${accessToken}`;
-          return api(original);
-        } catch {
-          // Another browser tab may have rotated the token while this request was in flight.
-          const currentRefreshToken = localStorage.getItem('refreshToken');
-          const currentAccessToken = localStorage.getItem('accessToken');
-          if (currentRefreshToken && currentRefreshToken !== refreshToken && currentAccessToken) {
-            original.headers.Authorization = `Bearer ${currentAccessToken}`;
-            return api(original);
-          }
-
-          clearStoredAuth();
-          window.location.href = '/login';
-        }
-      } else {
-        clearStoredAuth();
+      try {
+        const session = await requestSessionRefresh();
+        original.headers.Authorization = `Bearer ${session.accessToken}`;
+        return api(original);
+      } catch {
+        clearAuthSession();
         if (window.location.pathname !== '/login') window.location.href = '/login';
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

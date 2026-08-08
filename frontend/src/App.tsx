@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-import { useAppSelector } from './hooks/useRedux';
+import { useAppDispatch, useAppSelector } from './hooks/useRedux';
+import { initializeSession } from './store/slices/authSlice';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
@@ -35,6 +36,17 @@ function HomeRoute() {
 }
 
 export default function App() {
+  const dispatch = useAppDispatch();
+  const initialized = useAppSelector((state) => state.auth.initialized);
+
+  useEffect(() => {
+    dispatch(initializeSession());
+  }, [dispatch]);
+
+  if (!initialized) {
+    return <div className="page-enter" style={{ minHeight: '100vh', background: 'var(--bg-page)' }} />;
+  }
+
   return (
     <Suspense fallback={<div className="page-enter" style={{ minHeight: '100vh', background: 'var(--bg-page)' }} />}>
       <Routes>

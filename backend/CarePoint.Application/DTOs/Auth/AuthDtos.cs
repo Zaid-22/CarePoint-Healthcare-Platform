@@ -36,13 +36,14 @@ public class AuthResponseDto
     public string Role { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new();
     public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
     public DateTime AccessTokenExpiration { get; set; }
 }
 
-public class RefreshTokenRequestDto
+public sealed class AuthSessionDto
 {
+    public AuthResponseDto Response { get; set; } = new();
     public string RefreshToken { get; set; } = string.Empty;
+    public DateTime RefreshTokenExpiration { get; set; }
 }
 
 public class ChangePasswordDto
