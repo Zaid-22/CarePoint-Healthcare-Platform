@@ -10,11 +10,24 @@ namespace CarePoint.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "ArchivedProfilePictureValue",
+                table: "DoctorProfiles",
+                type: "nvarchar(max)",
+                nullable: true);
+
             migrationBuilder.Sql("""
                 UPDATE [DoctorProfiles]
-                SET [ProfilePictureUrl] = NULL
-                WHERE [ProfilePictureUrl] LIKE N'data:%'
-                   OR LEN([ProfilePictureUrl]) > 1000;
+                SET [ArchivedProfilePictureValue] = [ProfilePictureUrl],
+                    [ProfilePictureUrl] = CASE
+                        WHEN [ProfilePictureUrl] LIKE N'data:image/%;base64,%'
+                            THEN N'/api/doctors/' + CONVERT(nvarchar(36), [Id]) + N'/avatar?v=legacy'
+                        ELSE NULL
+                    END
+                WHERE [ProfilePictureUrl] IS NOT NULL
+                  AND ([ProfilePictureUrl] LIKE N'data:image/%;base64,%'
+                       OR DATALENGTH([ProfilePictureUrl]) / 2 > 1000
+                       OR [ProfilePictureUrl] NOT LIKE N'https://%');
                 """);
 
             migrationBuilder.AlterColumn<string>(
@@ -51,6 +64,16 @@ namespace CarePoint.Infrastructure.Data.Migrations
                 oldType: "nvarchar(1000)",
                 oldMaxLength: 1000,
                 oldNullable: true);
+
+            migrationBuilder.Sql("""
+                UPDATE [DoctorProfiles]
+                SET [ProfilePictureUrl] = [ArchivedProfilePictureValue]
+                WHERE [ArchivedProfilePictureValue] IS NOT NULL;
+                """);
+
+            migrationBuilder.DropColumn(
+                name: "ArchivedProfilePictureValue",
+                table: "DoctorProfiles");
         }
     }
 }

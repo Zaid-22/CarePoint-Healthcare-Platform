@@ -38,7 +38,8 @@ public interface IDoctorService
     Task<DoctorDto> UpdateProfileByUserIdAsync(string userId, UpdateDoctorDto dto);
     Task<DoctorDto> UploadProfileImageAsync(
         string userId, Stream content, string fileExtension);
-    Task<ProfileImageContent> GetProfileImageAsync(Guid doctorId);
+    Task<ProfileImageContent> GetProfileImageAsync(
+        Guid doctorId, string? requesterUserId = null, string? requesterRole = null);
     Task DeleteAsync(Guid id);
     Task<DoctorDto> ApproveAsync(Guid id);
     Task<DoctorDto> RejectAsync(Guid id);

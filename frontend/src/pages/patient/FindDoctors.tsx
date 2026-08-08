@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import type { PublicDoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } from '../../types';
 import { getClinicDateString } from '../../utils/clinicTime';
+import { resolveApiAssetUrl } from '../../utils/apiAssets';
 import PaginationControls from '../../components/common/PaginationControls';
 
 const PAGE_SIZE = 20;
@@ -200,7 +201,7 @@ export default function FindDoctors() {
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                   {doc.profilePictureUrl && (
                     <img
-                      src={doc.profilePictureUrl}
+                      src={resolveApiAssetUrl(doc.profilePictureUrl)}
                       alt={`Dr. ${doc.firstName}`}
                       style={{ width: 64, height: 64, borderRadius: 99, objectFit: 'cover', border: '2px solid var(--accent)' }}
                       onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}

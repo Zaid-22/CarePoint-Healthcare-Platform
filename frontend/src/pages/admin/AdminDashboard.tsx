@@ -4,6 +4,7 @@ import type { DoctorDto, DoctorAdminSummaryDto, ApiResponse } from '../../types'
 import doctorPortrait from '../../assets/doctor_portrait.png';
 import { DoctorIcon, CheckIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
+import ApiImage from '../../components/common/ApiImage';
 
 const PAGE_SIZE = 20;
 
@@ -217,11 +218,12 @@ export default function AdminDashboard() {
                   }}
                 >
                   <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                    <img
-                      src={doc.profilePictureUrl || doctorPortrait}
+                    <ApiImage
+                      source={doc.profilePictureUrl}
+                      fallback={doctorPortrait}
+                      authenticated
                       alt={doc.firstName}
                       style={{ width: 64, height: 64, borderRadius: 99, objectFit: 'cover', border: '2px solid var(--border-default)' }}
-                      onError={(e) => { (e.target as HTMLImageElement).src = doctorPortrait; }}
                     />
 
                     <div>

@@ -3,6 +3,7 @@ import api from '../../api/client';
 import type { DoctorDto, SpecialtyDto, DoctorAvailabilityDto, UpdateDoctorRequest, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
 import { DoctorIcon, CheckIcon, MailIcon, ActivityIcon, UserIcon, ClockIcon, FolderIcon, EyeIcon, CheckCircleIcon, XCircleIcon, XIcon, PlusIcon } from '../../components/common/Icons';
+import ApiImage from '../../components/common/ApiImage';
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
@@ -233,8 +234,10 @@ export default function DoctorProfilePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ position: 'relative' }}>
-              <img
-                src={profilePictureUrl && profilePictureUrl.trim() !== '' ? profilePictureUrl : doctorPortrait}
+              <ApiImage
+                source={profilePictureUrl}
+                fallback={doctorPortrait}
+                authenticated
                 alt="Doctor Avatar"
                 style={{
                   width: 100,
@@ -244,7 +247,6 @@ export default function DoctorProfilePage() {
                   border: '3.5px solid rgba(255, 255, 255, 0.3)',
                   boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)',
                 }}
-                onError={(e) => { (e.target as HTMLImageElement).src = doctorPortrait; }}
               />
               <div style={{
                 position: 'absolute',
@@ -689,8 +691,10 @@ export default function DoctorProfilePage() {
             </div>
 
             <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
-              <img
-                src={profilePictureUrl || doctorPortrait}
+              <ApiImage
+                source={profilePictureUrl}
+                fallback={doctorPortrait}
+                authenticated
                 alt="Avatar Large"
                 style={{
                   width: 140,
@@ -700,7 +704,6 @@ export default function DoctorProfilePage() {
                   border: '4px solid var(--accent)',
                   boxShadow: 'var(--shadow-md)',
                 }}
-                onError={(e) => { (e.target as HTMLImageElement).src = doctorPortrait; }}
               />
 
               <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -787,11 +790,12 @@ export default function DoctorProfilePage() {
                 boxShadow: 'var(--shadow-md)',
               }}>
                 <div style={{ display: 'flex', gap: 18, alignItems: 'center', marginBottom: 16 }}>
-                  <img
-                    src={profilePictureUrl || doctorPortrait}
+                  <ApiImage
+                    source={profilePictureUrl}
+                    fallback={doctorPortrait}
+                    authenticated
                     alt="Doctor"
                     style={{ width: 72, height: 72, borderRadius: 99, objectFit: 'cover', border: '2px solid var(--accent)' }}
-                    onError={(e) => { (e.target as HTMLImageElement).src = doctorPortrait; }}
                   />
                   <div>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>

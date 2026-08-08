@@ -58,8 +58,12 @@ public class DoctorsController : ControllerBase
     [HttpGet("{id:guid}/avatar")]
     public async Task<IActionResult> GetProfileImage(Guid id)
     {
-        var result = await _doctorService.GetProfileImageAsync(id);
-        Response.Headers.CacheControl = "public, max-age=3600";
+        var userId = User.Identity?.IsAuthenticated == true
+            ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            : null;
+        var role = User.IsInRole("Admin") ? "Admin" : User.IsInRole("Doctor") ? "Doctor" : null;
+        var result = await _doctorService.GetProfileImageAsync(id, userId, role);
+        Response.Headers.CacheControl = "no-store";
         return File(result.Content, result.ContentType);
     }
 

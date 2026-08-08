@@ -1,7 +1,8 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import type { ApiResponse, AuthResponse } from '../types';
+import { API_BASE_URL } from '../utils/apiAssets';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+const baseURL = API_BASE_URL;
 
 const api = axios.create({
   baseURL,

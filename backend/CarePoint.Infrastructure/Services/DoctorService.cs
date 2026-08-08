@@ -238,6 +238,8 @@ public class DoctorService : IDoctorService
         doctor.ProfilePictureStorageKey = profilePicture.KeepStoredImage
             ? doctor.ProfilePictureStorageKey
             : null;
+        if (!profilePicture.KeepStoredImage)
+            doctor.ArchivedProfilePictureValue = null;
 
         var requestedSpecialtyIds = dto.SpecialtyIds.Distinct().ToList();
         var validSpecialties = await _context.Specialties
@@ -299,6 +301,7 @@ public class DoctorService : IDoctorService
             newStorageKey = await _profileImageStorage.SaveAsync(content, fileExtension);
             var oldStorageKey = doctor.ProfilePictureStorageKey;
             doctor.ProfilePictureStorageKey = newStorageKey;
+            doctor.ArchivedProfilePictureValue = null;
             doctor.ProfilePictureUrl =
                 $"/api/doctors/{doctor.Id}/avatar?v={Guid.NewGuid():N}";
             await _context.SaveChangesAsync();
@@ -317,32 +320,49 @@ public class DoctorService : IDoctorService
         return await GetByIdInternalAsync(doctor.Id, requireApproved: false);
     }
 
-    public async Task<ProfileImageContent> GetProfileImageAsync(Guid doctorId)
+    public async Task<ProfileImageContent> GetProfileImageAsync(
+        Guid doctorId, string? requesterUserId = null, string? requesterRole = null)
     {
-        var storageKey = await _context.DoctorProfiles.AsNoTracking()
+        var doctor = await _context.DoctorProfiles.AsNoTracking()
             .Where(doctor => doctor.Id == doctorId)
-            .Select(doctor => doctor.ProfilePictureStorageKey)
+            .Select(doctor => new
+            {
+                doctor.UserId,
+                doctor.ApprovalStatus,
+                doctor.ProfilePictureStorageKey,
+                doctor.ArchivedProfilePictureValue
+            })
             .FirstOrDefaultAsync();
-        if (storageKey == null)
+        var canRead = doctor != null &&
+            (doctor.ApprovalStatus == DoctorApprovalStatus.Approved ||
+             requesterRole == "Admin" ||
+             (requesterRole == "Doctor" && doctor.UserId == requesterUserId));
+        if (!canRead)
             throw new NotFoundException("Profile image", doctorId);
 
-        Stream content;
-        try
+        if (doctor!.ProfilePictureStorageKey != null)
         {
-            content = await _profileImageStorage.OpenReadAsync(storageKey);
-        }
-        catch (FileNotFoundException)
-        {
-            throw new NotFoundException("Profile image", doctorId);
+            Stream content;
+            try
+            {
+                content = await _profileImageStorage.OpenReadAsync(doctor.ProfilePictureStorageKey);
+            }
+            catch (FileNotFoundException)
+            {
+                throw new NotFoundException("Profile image", doctorId);
+            }
+
+            var contentType = Path.GetExtension(doctor.ProfilePictureStorageKey).ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                _ => "application/octet-stream"
+            };
+            return new ProfileImageContent(content, contentType);
         }
 
-        var contentType = Path.GetExtension(storageKey).ToLowerInvariant() switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            _ => "application/octet-stream"
-        };
-        return new ProfileImageContent(content, contentType);
+        return DecodeLegacyProfileImage(doctor.ArchivedProfilePictureValue)
+            ?? throw new NotFoundException("Profile image", doctorId);
     }
 
     public async Task DeleteAsync(Guid id)
@@ -642,7 +662,8 @@ public class DoctorService : IDoctorService
         if (string.IsNullOrWhiteSpace(requestedUrl)) return (null, false);
         var trimmed = requestedUrl.Trim();
         var ownAvatarPath = $"/api/doctors/{doctor.Id}/avatar";
-        if (doctor.ProfilePictureStorageKey != null &&
+        if ((doctor.ProfilePictureStorageKey != null ||
+             doctor.ArchivedProfilePictureValue?.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) == true) &&
             (trimmed == ownAvatarPath ||
              trimmed.StartsWith(ownAvatarPath + "?", StringComparison.Ordinal)))
         {
@@ -653,6 +674,33 @@ public class DoctorService : IDoctorService
             throw new BadRequestException(
                 "Profile picture must be an HTTPS URL or your uploaded CarePoint image.");
         return (trimmed, false);
+    }
+
+    private static ProfileImageContent? DecodeLegacyProfileImage(string? dataUrl)
+    {
+        const int maximumEncodedLength = 8 * 1024 * 1024;
+        const string base64Marker = ";base64,";
+        if (string.IsNullOrWhiteSpace(dataUrl) || dataUrl.Length > maximumEncodedLength ||
+            !dataUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var markerIndex = dataUrl.IndexOf(base64Marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex <= "data:".Length) return null;
+        var contentType = dataUrl["data:".Length..markerIndex].ToLowerInvariant();
+        if (contentType is not ("image/jpeg" or "image/png" or "image/gif" or "image/webp"))
+            return null;
+
+        try
+        {
+            var bytes = Convert.FromBase64String(dataUrl[(markerIndex + base64Marker.Length)..]);
+            return new ProfileImageContent(new MemoryStream(bytes, writable: false), contentType);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     private async Task DeleteReplacedProfileImageAsync(string storageKey)

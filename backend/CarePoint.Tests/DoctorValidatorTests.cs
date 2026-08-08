@@ -1,8 +1,15 @@
 using CarePoint.Application.DTOs.Doctors;
 using CarePoint.Application.DTOs.Auth;
 using CarePoint.Application.Validators;
+using CarePoint.Application.Interfaces;
+using CarePoint.Domain.Entities;
+using CarePoint.Domain.Enums;
+using CarePoint.Domain.Exceptions;
+using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CarePoint.Tests;
 
@@ -99,6 +106,94 @@ public class DoctorValidatorTests
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task PendingArchivedProfileImageIsLimitedToOwnerAndAdmin()
+    {
+        await using var context = CreateContext();
+        var doctor = CreateDoctor(DoctorApprovalStatus.Pending);
+        context.DoctorProfiles.Add(doctor);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetProfileImageAsync(doctor.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetProfileImageAsync(doctor.Id, "another-user", "Doctor"));
+
+        var ownerImage = await service.GetProfileImageAsync(doctor.Id, doctor.UserId, "Doctor");
+        await using (ownerImage.Content)
+        {
+            Assert.Equal("image/png", ownerImage.ContentType);
+            Assert.Equal(new byte[] { 1, 2, 3 }, await ReadAllBytesAsync(ownerImage.Content));
+        }
+
+        var adminImage = await service.GetProfileImageAsync(doctor.Id, "admin-user", "Admin");
+        await using (adminImage.Content)
+        {
+            Assert.Equal(new byte[] { 1, 2, 3 }, await ReadAllBytesAsync(adminImage.Content));
+        }
+    }
+
+    [Fact]
+    public async Task ApprovedArchivedProfileImageCanBeReadAnonymously()
+    {
+        await using var context = CreateContext();
+        var doctor = CreateDoctor(DoctorApprovalStatus.Approved);
+        context.DoctorProfiles.Add(doctor);
+        await context.SaveChangesAsync();
+
+        var image = await CreateService(context).GetProfileImageAsync(doctor.Id);
+        await using (image.Content)
+        {
+            Assert.Equal("image/png", image.ContentType);
+            Assert.Equal(new byte[] { 1, 2, 3 }, await ReadAllBytesAsync(image.Content));
+        }
+    }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"doctor-images-{Guid.NewGuid()}")
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
+    private static DoctorProfile CreateDoctor(DoctorApprovalStatus approvalStatus)
+    {
+        var doctorId = Guid.NewGuid();
+        return new DoctorProfile
+        {
+            Id = doctorId,
+            UserId = "doctor-user",
+            ApprovalStatus = approvalStatus,
+            ArchivedProfilePictureValue = "data:image/png;base64,AQID",
+            ProfilePictureUrl = $"/api/doctors/{doctorId}/avatar?v=legacy"
+        };
+    }
+
+    private static DoctorService CreateService(ApplicationDbContext context) => new(
+        context,
+        null!,
+        null!,
+        null!,
+        new UnusedProfileImageStorage(),
+        NullLogger<DoctorService>.Instance);
+
+    private sealed class UnusedProfileImageStorage : IProfileImageStorage
+    {
+        public Task<string> SaveAsync(Stream content, string fileExtension,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenReadAsync(string storageKey,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAsync(string storageKey,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private static async Task<byte[]> ReadAllBytesAsync(Stream stream)

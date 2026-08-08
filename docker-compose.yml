@@ -48,6 +48,7 @@ services:
       - Database__InitializeOnStartup=${INITIALIZE_DATABASE_ON_STARTUP:-true}
     volumes:
       - medical-documents:/app/App_Data/medical-documents
+      - profile-images:/app/App_Data/profile-images
 
   frontend:
     build:
@@ -64,3 +65,4 @@ services:
 volumes:
   sqlserver-data:
   medical-documents:
+  profile-images:

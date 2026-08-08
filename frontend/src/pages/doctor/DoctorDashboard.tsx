@@ -3,6 +3,7 @@ import api from '../../api/client';
 import type { AppointmentDto, AppointmentSummaryDto, DoctorDto, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
 import { ClockIcon } from '../../components/common/Icons';
+import ApiImage from '../../components/common/ApiImage';
 import { getClinicDateString } from '../../utils/clinicTime';
 
 export default function DoctorDashboard() {
@@ -50,11 +51,12 @@ export default function DoctorDashboard() {
           </h1>
           <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>Manage patient schedules and clinical consultations efficiently.</p>
         </div>
-        <img
-          src={profile?.profilePictureUrl && profile.profilePictureUrl.trim() !== '' ? profile.profilePictureUrl : doctorPortrait}
+        <ApiImage
+          source={profile?.profilePictureUrl}
+          fallback={doctorPortrait}
+          authenticated
           alt="Doctor Avatar"
           style={{ width: 80, height: 80, borderRadius: 99, objectFit: 'cover', border: '3px solid var(--accent)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-          onError={(e) => { (e.target as HTMLImageElement).src = doctorPortrait; }}
         />
       </div>
 
