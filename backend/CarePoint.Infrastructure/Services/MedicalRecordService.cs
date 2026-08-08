@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
-using CarePoint.Infrastructure.Identity;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
 using CarePoint.Domain.Enums;
@@ -15,12 +13,9 @@ namespace CarePoint.Infrastructure.Services;
 public class MedicalRecordService : IMedicalRecordService
 {
     private readonly ApplicationDbContext _context;
-    private readonly UserManager<ApplicationUser> _userManager;
-
-    public MedicalRecordService(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public MedicalRecordService(ApplicationDbContext context)
     {
         _context = context;
-        _userManager = userManager;
     }
 
     public async Task<MedicalRecordDto> GetByIdAsync(Guid id, string userId, string role)
@@ -30,8 +25,46 @@ public class MedicalRecordService : IMedicalRecordService
             .Include(r => r.Appointment).ThenInclude(a => a.PatientProfile)
             .FirstOrDefaultAsync(r => r.Id == id)
             ?? throw new NotFoundException("Medical Record", id);
-        await EnsureCanReadAsync(record, userId, role);
+        EnsureCanRead(record, userId, role);
         return await MapToDtoAsync(record);
+    }
+
+    public async Task<IReadOnlyList<MedicalRecordRevisionDto>> GetRevisionsAsync(
+        Guid id, string userId, string role)
+    {
+        var record = await _context.MedicalRecords
+            .Include(r => r.Appointment).ThenInclude(a => a.DoctorProfile)
+            .Include(r => r.Appointment).ThenInclude(a => a.PatientProfile)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == id)
+            ?? throw new NotFoundException("Medical Record", id);
+        EnsureCanRead(record, userId, role);
+
+        var revisions = await _context.MedicalRecordRevisions.AsNoTracking()
+            .Where(revision => revision.MedicalRecordId == id)
+            .OrderByDescending(revision => revision.CreatedAt)
+            .ToListAsync();
+        var editorIds = revisions.Select(revision => revision.EditedByUserId).Distinct().ToList();
+        var editors = await _context.Users.AsNoTracking()
+            .Where(user => editorIds.Contains(user.Id))
+            .ToDictionaryAsync(user => user.Id);
+
+        return revisions.Select(revision =>
+        {
+            editors.TryGetValue(revision.EditedByUserId, out var editor);
+            return new MedicalRecordRevisionDto
+            {
+                Id = revision.Id,
+                EditedByName = editor != null
+                    ? $"Dr. {editor.FirstName} {editor.LastName}"
+                    : "Practitioner",
+                ChangeReason = revision.ChangeReason,
+                Diagnosis = revision.Diagnosis,
+                Treatment = revision.Treatment,
+                Notes = revision.Notes,
+                EditedAt = revision.CreatedAt
+            };
+        }).ToList();
     }
 
     public async Task<PagedResult<MedicalRecordDto>> GetByPatientIdAsync(
@@ -109,6 +142,9 @@ public class MedicalRecordService : IMedicalRecordService
 
     public async Task<MedicalRecordDto> UpdateAsync(Guid id, string userId, UpdateMedicalRecordDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.ChangeReason))
+            throw new BadRequestException("A reason is required when correcting a medical record.");
+
         var record = await _context.MedicalRecords
             .Include(r => r.Appointment)
             .FirstOrDefaultAsync(r => r.Id == id)
@@ -120,14 +156,33 @@ public class MedicalRecordService : IMedicalRecordService
                 doctor.Id, record.Appointment.DoctorProfileId, doctor.ApprovalStatus, record.Appointment.Status))
             throw new ForbiddenException("Only an approved treating doctor can update this record.");
 
+        _context.Entry(record).Property(r => r.RowVersion).OriginalValue = dto.RowVersion;
+        _context.MedicalRecordRevisions.Add(new MedicalRecordRevision
+        {
+            MedicalRecordId = record.Id,
+            EditedByUserId = userId,
+            ChangeReason = dto.ChangeReason.Trim(),
+            Diagnosis = record.Diagnosis,
+            Treatment = record.Treatment,
+            Notes = record.Notes,
+            PreviousRowVersion = record.RowVersion.ToArray()
+        });
         record.Diagnosis = dto.Diagnosis;
         record.Treatment = dto.Treatment;
         record.Notes = dto.Notes;
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictException(
+                "This medical record was changed by another user. Reload it before applying your correction.");
+        }
         return await GetByIdAsync(record.Id, userId, "Doctor");
     }
 
-    private async Task EnsureCanReadAsync(MedicalRecord record, string userId, string role)
+    private static void EnsureCanRead(MedicalRecord record, string userId, string role)
     {
         if (role == "Admin") return;
 
@@ -169,10 +224,12 @@ public class MedicalRecordService : IMedicalRecordService
     private async Task<MedicalRecordDto> MapToDtoAsync(MedicalRecord r)
     {
         var doctorUser = r.Appointment?.DoctorProfile != null
-            ? await _userManager.FindByIdAsync(r.Appointment.DoctorProfile.UserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(
+                user => user.Id == r.Appointment.DoctorProfile.UserId)
             : null;
         var patientUser = r.Appointment?.PatientProfile != null
-            ? await _userManager.FindByIdAsync(r.Appointment.PatientProfile.UserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(
+                user => user.Id == r.Appointment.PatientProfile.UserId)
             : null;
 
         return new MedicalRecordDto
@@ -185,7 +242,9 @@ public class MedicalRecordService : IMedicalRecordService
             Diagnosis = r.Diagnosis,
             Treatment = r.Treatment,
             Notes = r.Notes,
-            CreatedAt = r.CreatedAt
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt,
+            RowVersion = r.RowVersion
         };
     }
 
@@ -217,7 +276,9 @@ public class MedicalRecordService : IMedicalRecordService
                 Diagnosis = record.Diagnosis,
                 Treatment = record.Treatment,
                 Notes = record.Notes,
-                CreatedAt = record.CreatedAt
+                CreatedAt = record.CreatedAt,
+                UpdatedAt = record.UpdatedAt,
+                RowVersion = record.RowVersion
             };
         }).ToList();
     }

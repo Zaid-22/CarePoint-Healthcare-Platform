@@ -14,4 +14,7 @@ public class MedicalRecord : BaseEntity
     public string Diagnosis { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public string? Treatment { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    public ICollection<MedicalRecordRevision> Revisions { get; set; } = new List<MedicalRecordRevision>();
 }

@@ -68,6 +68,8 @@ public interface IMedicalRecordService
         Guid patientId, string userId, string role, string? search = null, int skip = 0, int take = 50);
     Task<PagedResult<MedicalRecordDto>> GetMyHistoryAsync(
         string userId, string? search = null, int skip = 0, int take = 50);
+    Task<IReadOnlyList<MedicalRecordRevisionDto>> GetRevisionsAsync(
+        Guid id, string userId, string role);
     Task<MedicalRecordDto> CreateAsync(string userId, CreateMedicalRecordDto dto);
     Task<MedicalRecordDto> UpdateAsync(Guid id, string userId, UpdateMedicalRecordDto dto);
 }

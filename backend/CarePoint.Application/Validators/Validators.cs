@@ -157,6 +157,8 @@ public class UpdateMedicalRecordValidator : AbstractValidator<UpdateMedicalRecor
         RuleFor(x => x.Diagnosis).NotEmpty().MaximumLength(2000);
         RuleFor(x => x.Notes).MaximumLength(4000);
         RuleFor(x => x.Treatment).MaximumLength(4000);
+        RuleFor(x => x.ChangeReason).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.RowVersion).NotEmpty();
     }
 }
 

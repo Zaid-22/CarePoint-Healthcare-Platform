@@ -8,6 +8,8 @@ export interface MedicalRecordDto {
   treatment?: string;
   notes?: string;
   createdAt: string;
+  updatedAt: string;
+  rowVersion: string;
 }
 
 export interface PrescriptionDto {

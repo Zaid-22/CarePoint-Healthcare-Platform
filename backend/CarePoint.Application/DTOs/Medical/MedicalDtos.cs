@@ -13,6 +13,8 @@ public class MedicalRecordDto
     public string? Notes { get; set; }
     public string? Treatment { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public class CreateMedicalRecordDto
@@ -28,6 +30,19 @@ public class UpdateMedicalRecordDto
     public string Diagnosis { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public string? Treatment { get; set; }
+    public string ChangeReason { get; set; } = string.Empty;
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+public class MedicalRecordRevisionDto
+{
+    public Guid Id { get; set; }
+    public string EditedByName { get; set; } = string.Empty;
+    public string ChangeReason { get; set; } = string.Empty;
+    public string Diagnosis { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public string? Treatment { get; set; }
+    public DateTime EditedAt { get; set; }
 }
 
 public class PrescriptionDto

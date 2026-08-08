@@ -47,6 +47,15 @@ public class MedicalRecordsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.PagedSuccessResponse(page));
     }
 
+    [HttpGet("{id:guid}/revisions")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordRevisionDto>>>> GetRevisions(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+        var revisions = await _service.GetRevisionsAsync(id, userId, role);
+        return Ok(ApiResponse<IReadOnlyList<MedicalRecordRevisionDto>>.SuccessResponse(revisions));
+    }
+
     [Authorize(Roles = "Doctor")]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<MedicalRecordDto>>> Create([FromBody] CreateMedicalRecordDto dto)

@@ -143,11 +143,33 @@ public class MedicalRecordConfiguration : IEntityTypeConfiguration<MedicalRecord
         builder.Property(mr => mr.Diagnosis).IsRequired().HasMaxLength(2000);
         builder.Property(mr => mr.Notes).HasMaxLength(4000);
         builder.Property(mr => mr.Treatment).HasMaxLength(4000);
+        builder.Property(mr => mr.RowVersion).IsRowVersion();
 
         builder.HasOne(mr => mr.Appointment)
             .WithOne(a => a.MedicalRecord)
             .HasForeignKey<MedicalRecord>(mr => mr.AppointmentId)
             .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class MedicalRecordRevisionConfiguration : IEntityTypeConfiguration<MedicalRecordRevision>
+{
+    public void Configure(EntityTypeBuilder<MedicalRecordRevision> builder)
+    {
+        builder.HasKey(revision => revision.Id);
+        builder.HasIndex(revision => revision.MedicalRecordId);
+        builder.HasIndex(revision => revision.EditedByUserId);
+        builder.Property(revision => revision.EditedByUserId).IsRequired().HasMaxLength(450);
+        builder.Property(revision => revision.ChangeReason).IsRequired().HasMaxLength(500);
+        builder.Property(revision => revision.Diagnosis).IsRequired().HasMaxLength(2000);
+        builder.Property(revision => revision.Notes).HasMaxLength(4000);
+        builder.Property(revision => revision.Treatment).HasMaxLength(4000);
+        builder.Property(revision => revision.PreviousRowVersion).IsRequired().HasMaxLength(8).IsFixedLength();
+
+        builder.HasOne(revision => revision.MedicalRecord)
+            .WithMany(record => record.Revisions)
+            .HasForeignKey(revision => revision.MedicalRecordId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 
