@@ -30,6 +30,20 @@ public class ApiRouteAuthorizationTests
         Assert.Equal("{id:guid}", route.Template);
     }
 
+    [Fact]
+    public void AdminUserManagement_IsProtectedAtTheControllerBoundary()
+    {
+        var controllerType = typeof(AdminUsersController);
+        var controllerAuthorization = controllerType.GetCustomAttribute<AuthorizeAttribute>();
+        var controllerRoute = controllerType.GetCustomAttribute<RouteAttribute>();
+        var mutation = controllerType.GetMethod(nameof(AdminUsersController.SetDisabled))
+            ?? throw new InvalidOperationException("Admin user state action was not found.");
+
+        Assert.Equal("Admin", controllerAuthorization?.Roles);
+        Assert.Equal("api/admin/users", controllerRoute?.Template);
+        Assert.Equal("{id}/disabled", mutation.GetCustomAttribute<HttpPutAttribute>()?.Template);
+    }
+
     private static void AssertAuthorizedRoute<TController, TRouteAttribute>(
         string methodName, string template, string role)
         where TRouteAttribute : HttpMethodAttribute

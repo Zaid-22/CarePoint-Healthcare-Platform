@@ -3,6 +3,7 @@ using CarePoint.Application.DTOs.Appointments;
 using CarePoint.Application.DTOs.Patients;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.DTOs.Common;
+using CarePoint.Application.DTOs.Admin;
 using CarePoint.Domain.Enums;
 
 namespace CarePoint.Application.Interfaces;
@@ -16,6 +17,13 @@ public interface IClinicClock
 public interface IPasswordResetEmailSender
 {
     Task SendAsync(string recipientEmail, string resetUrl, CancellationToken cancellationToken = default);
+}
+
+public interface IAdminUserService
+{
+    Task<PagedResult<AdminUserDto>> GetAllAsync(
+        string? search = null, string? role = null, int skip = 0, int take = 50);
+    Task<AdminUserDto> SetDisabledAsync(string id, string actorUserId, bool disabled);
 }
 
 public interface IDoctorService
@@ -58,7 +66,8 @@ public interface IAppointmentService
 public interface IPatientService
 {
     Task<PatientDto> GetByIdAsync(Guid id, string userId, string role);
-    Task<PagedResult<PatientDto>> GetAllAsync(int skip = 0, int take = 50);
+    Task<PagedResult<PatientDto>> GetAllAsync(
+        string? search = null, int skip = 0, int take = 50);
     Task<PatientDto> GetByUserIdAsync(string userId);
     Task<PatientDto> UpdateProfileAsync(Guid id, string userId, UpdatePatientDto dto);
     Task<PatientDto> UpdateMyProfileAsync(string userId, UpdatePatientDto dto);

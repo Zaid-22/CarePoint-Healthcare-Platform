@@ -22,9 +22,10 @@ public class PatientsController : ControllerBase
     [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PatientDto>>>> GetAll(
+        [FromQuery] string? search = null,
         [FromQuery] int skip = 0, [FromQuery] int take = 50)
     {
-        var result = await _patientService.GetAllAsync(skip, take);
+        var result = await _patientService.GetAllAsync(search, skip, take);
         return Ok(ApiResponse<IReadOnlyList<PatientDto>>.PagedSuccessResponse(result));
     }
 
@@ -47,7 +48,6 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("me")]
-    [HttpPut]
     [Authorize(Roles = "Patient")]
     public async Task<ActionResult<ApiResponse<PatientDto>>> UpdateMyProfile([FromBody] UpdatePatientDto dto)
     {

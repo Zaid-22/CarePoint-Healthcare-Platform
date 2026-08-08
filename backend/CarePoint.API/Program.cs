@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using System.Net;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
+using CarePoint.Infrastructure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,6 +66,18 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret)),
         ClockSkew = TimeSpan.Zero
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userManager = context.HttpContext.RequestServices
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var user = userId is null ? null : await userManager.FindByIdAsync(userId);
+            if (user is null || await userManager.IsLockedOutAsync(user))
+                context.Fail("This account is unavailable or locked.");
+        }
     };
 });
 

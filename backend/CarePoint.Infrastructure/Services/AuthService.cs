@@ -221,6 +221,8 @@ public class AuthService : IAuthService
 
         var user = await _userManager.FindByIdAsync(storedToken.UserId)
             ?? throw new NotFoundException("User", storedToken.UserId);
+        if (await _userManager.IsLockedOutAsync(user))
+            throw new BadRequestException("Account is locked. Contact an administrator for assistance.");
 
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Patient";

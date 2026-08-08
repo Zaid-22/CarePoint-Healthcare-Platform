@@ -24,6 +24,10 @@ const DoctorProfilePage = lazy(() => import('./pages/doctor/DoctorProfilePage'))
 const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminSpecialtiesPage = lazy(() => import('./pages/admin/AdminSpecialtiesPage'));
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'));
+const AdminPatientsPage = lazy(() => import('./pages/admin/AdminPatientsPage'));
+const AdminAppointmentsPage = lazy(() => import('./pages/admin/AdminAppointmentsPage'));
+const AdminClinicsPage = lazy(() => import('./pages/admin/AdminClinicsPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 function HomeRoute() {
@@ -62,6 +66,10 @@ export default function App() {
       <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
         <Route element={<AdminLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/patients" element={<AdminPatientsPage />} />
+          <Route path="/admin/appointments" element={<AdminAppointmentsPage />} />
+          <Route path="/admin/clinics" element={<AdminClinicsPage />} />
           <Route path="/admin/specialties" element={<AdminSpecialtiesPage />} />
         </Route>
       </Route>

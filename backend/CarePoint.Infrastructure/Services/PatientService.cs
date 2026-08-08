@@ -61,11 +61,19 @@ public class PatientService : IPatientService
         return MapToDto(patient, user);
     }
 
-    public async Task<PagedResult<PatientDto>> GetAllAsync(int skip = 0, int take = 50)
+    public async Task<PagedResult<PatientDto>> GetAllAsync(
+        string? search = null, int skip = 0, int take = 50)
     {
         (skip, take) = Pagination.Normalize(skip, take);
+        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        if (search?.Length > 200)
+            throw new BadRequestException("Search text must be 200 characters or fewer.");
+
         var query = from patient in _context.PatientProfiles.AsNoTracking()
                     join user in _context.Users.AsNoTracking() on patient.UserId equals user.Id
+                    where search == null ||
+                          (user.Email != null && user.Email.Contains(search)) ||
+                          (user.FirstName + " " + user.LastName).Contains(search)
                     orderby patient.CreatedAt descending
                     select new PatientDto
                     {
