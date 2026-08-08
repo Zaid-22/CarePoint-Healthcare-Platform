@@ -65,15 +65,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+    <div className="auth-shell">
       {/* Left — brand & visual hero panel */}
-      <div style={{
+      <div className="auth-hero" style={{
         position: 'relative',
         background: 'linear-gradient(160deg, var(--color-teal-950) 0%, var(--color-teal-900) 50%, var(--color-teal-800) 100%)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '48px',
         color: 'white',
         overflow: 'hidden',
       }}>
@@ -105,7 +104,7 @@ export default function RegisterPage() {
           </span>
         </Link>
 
-        <div style={{ position: 'relative', zIndex: 2, margin: 'auto 0' }}>
+        <div className="auth-hero-main" style={{ position: 'relative', zIndex: 2, margin: 'auto 0' }}>
           <p style={{ fontSize: '0.875rem', opacity: 0.8, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>
             Join thousands of active users
           </p>
@@ -128,7 +127,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+        <div className="auth-hero-stats" style={{ position: 'relative', zIndex: 2, gap: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
           {[['10k+', 'Patients'], ['500+', 'Specialists'], ['24/7', 'Support']].map(([n, l]) => (
             <div key={l}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700 }}>{n}</div>
@@ -139,11 +138,10 @@ export default function RegisterPage() {
       </div>
 
       {/* Right — form panel */}
-      <div style={{
+      <div className="auth-form-panel" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '48px 64px',
         background: 'var(--bg-page)',
         overflowY: 'auto',
       }}>
@@ -176,7 +174,7 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="auth-form-grid">
               <div className="form-group">
                 <label className="form-label">First name</label>
                 <input className="form-input" placeholder="Jane"
@@ -262,7 +260,7 @@ export default function RegisterPage() {
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="auth-form-grid">
                   <div className="form-group">
                     <label className="form-label">Consultation Fee (JOD)</label>
                     <input className="form-input" type="number" min="0" step="0.01" placeholder="50.00"

@@ -35,15 +35,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+    <div className="auth-shell">
       {/* Left — brand & visual hero panel */}
-      <div style={{
+      <div className="auth-hero" style={{
         position: 'relative',
         background: 'linear-gradient(160deg, var(--color-teal-950) 0%, var(--color-teal-900) 50%, var(--color-teal-800) 100%)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '48px',
         color: 'white',
         overflow: 'hidden',
       }}>
@@ -73,7 +72,7 @@ export default function LoginPage() {
           </span>
         </Link>
 
-        <div style={{ position: 'relative', zIndex: 2, margin: 'auto 0' }}>
+        <div className="auth-hero-main" style={{ position: 'relative', zIndex: 2, margin: 'auto 0' }}>
           <span style={{
             fontSize: '0.8125rem',
             fontWeight: 600,
@@ -96,7 +95,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+        <div className="auth-hero-stats" style={{ position: 'relative', zIndex: 2, gap: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
           {[['10k+', 'Patients'], ['500+', 'Specialists'], ['99.8%', 'Uptime']].map(([n, l]) => (
             <div key={l}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-teal-200)' }}>{n}</div>
@@ -107,11 +106,10 @@ export default function LoginPage() {
       </div>
 
       {/* Right — form panel */}
-      <div style={{
+      <div className="auth-form-panel" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '48px 64px',
         background: 'var(--bg-page)',
       }}>
         <div style={{ width: '100%', maxWidth: 400 }} className="page-enter">

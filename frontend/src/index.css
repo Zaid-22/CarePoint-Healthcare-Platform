@@ -382,6 +382,62 @@ body {
   border-color: #fecdd3;
 }
 
+/* Responsive authentication shell */
+.auth-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.auth-hero {
+  padding: 48px;
+}
+
+.auth-hero-stats {
+  display: flex;
+}
+
+.auth-form-panel {
+  padding: 48px 64px;
+}
+
+.auth-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 860px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-hero {
+    min-height: 96px;
+    padding: 24px;
+  }
+
+  .auth-hero-main,
+  .auth-hero-stats {
+    display: none;
+  }
+
+  .auth-form-panel {
+    align-items: flex-start !important;
+    padding: 36px clamp(20px, 7vw, 56px);
+  }
+}
+
+@media (max-width: 520px) {
+  .auth-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-form-panel {
+    padding: 28px 18px 40px;
+  }
+}
+
 /* Responsive role portals */
 .portal-shell {
   --portal-accent: var(--accent);
@@ -632,6 +688,107 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .portal-nav-link {
     transition: none;
+  }
+}
+
+.appointment-filter-tabs {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.appointment-card {
+  padding: 24px;
+}
+
+.appointment-card-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.appointment-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.appointment-actions,
+.reschedule-editor-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.reschedule-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid var(--color-teal-200);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--color-teal-50), #fff);
+}
+
+.reschedule-editor-copy h4 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.reschedule-editor-copy p {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.reschedule-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.reschedule-editor-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 680px) {
+  .appointment-card {
+    padding: 18px;
+  }
+
+  .appointment-card-main,
+  .appointment-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .appointment-card-main {
+    gap: 18px;
+  }
+
+  .appointment-meta {
+    gap: 6px;
+  }
+
+  .appointment-actions,
+  .reschedule-editor-actions {
+    width: 100%;
+  }
+
+  .appointment-actions .btn,
+  .reschedule-editor-actions .btn {
+    flex: 1;
+  }
+
+  .reschedule-editor {
+    margin-top: 18px;
+    padding: 18px;
   }
 }
 
