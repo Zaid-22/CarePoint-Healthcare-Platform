@@ -120,6 +120,16 @@ public class PrescriptionsController : ControllerBase
         var result = await _service.CreateAsync(userId, dto);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<PrescriptionDto>.SuccessResponse(result));
     }
+
+    [Authorize(Roles = "Doctor")]
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<PrescriptionDto>>> Update(
+        Guid id, [FromBody] CreatePrescriptionDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        return Ok(ApiResponse<PrescriptionDto>.SuccessResponse(
+            await _service.UpdateAsync(id, userId, dto)));
+    }
 }
 
 [ApiController]
@@ -233,5 +243,21 @@ public class ClinicsController : ControllerBase
     {
         var result = await _service.CreateAsync(dto);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<ClinicDto>.SuccessResponse(result));
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<ClinicDto>>> Update(
+        Guid id, [FromBody] CreateClinicDto dto)
+    {
+        return Ok(ApiResponse<ClinicDto>.SuccessResponse(await _service.UpdateAsync(id, dto)));
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<string>>> Delete(Guid id)
+    {
+        await _service.DeleteAsync(id);
+        return Ok(ApiResponse<string>.SuccessResponse("Clinic deactivated successfully."));
     }
 }

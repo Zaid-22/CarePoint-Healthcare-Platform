@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.19.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
       <PrivateAssets>all</PrivateAssets>
@@ -21,5 +23,6 @@
     <ProjectReference Include="..\CarePoint.Domain\CarePoint.Domain.csproj" />
     <ProjectReference Include="..\CarePoint.Application\CarePoint.Application.csproj" />
     <ProjectReference Include="..\CarePoint.Infrastructure\CarePoint.Infrastructure.csproj" />
+    <ProjectReference Include="..\CarePoint.API\CarePoint.API.csproj" />
   </ItemGroup>
 </Project>
