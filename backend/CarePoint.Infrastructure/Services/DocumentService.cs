@@ -9,6 +9,9 @@ using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
 using CarePoint.Domain.Enums;
+using CarePoint.Application.Configuration;
+using Microsoft.Extensions.Options;
+using System.Data;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -17,13 +20,17 @@ public class DocumentService : IDocumentService
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IMedicalDocumentStorage _storage;
+    private readonly long _maxBytesPerPatient;
 
     public DocumentService(ApplicationDbContext context, UserManager<ApplicationUser> userManager,
-        IMedicalDocumentStorage storage)
+        IMedicalDocumentStorage storage, IOptions<MedicalDocumentSettings> settings)
     {
         _context = context;
         _userManager = userManager;
         _storage = storage;
+        _maxBytesPerPatient = settings.Value.MaxBytesPerPatient;
+        if (_maxBytesPerPatient <= 0)
+            throw new InvalidOperationException("MedicalDocuments:MaxBytesPerPatient must be greater than zero.");
     }
 
     public async Task<MedicalDocumentDto> GetByIdAsync(Guid id, string userId, string role)
@@ -123,39 +130,54 @@ public class DocumentService : IDocumentService
         if (!isPatientOwner && !isTreatingDoctor && !await IsAdminAsync(userId))
             throw new ForbiddenException("You cannot upload documents for this patient.");
 
-        var storageKey = await _storage.SaveAsync(content, Path.GetExtension(fileName));
-        var doc = new MedicalDocument
-        {
-            PatientProfileId = patientProfileId,
-            UploadedByUserId = userId,
-            FileName = fileName,
-            FileUrl = storageKey,
-            ContentType = contentType,
-            DocumentType = documentType,
-            FileSizeBytes = fileSizeBytes,
-            AppointmentId = appointmentId
-        };
+        if (fileSizeBytes <= 0)
+            throw new BadRequestException("Select a non-empty medical document.");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var usedBytes = await _context.MedicalDocuments
+            .Where(document => document.PatientProfileId == patientProfileId)
+            .SumAsync(document => (long?)document.FileSizeBytes) ?? 0L;
+        if (fileSizeBytes > _maxBytesPerPatient - Math.Min(usedBytes, _maxBytesPerPatient))
+            throw new BadRequestException(
+                $"This upload exceeds the patient's {_maxBytesPerPatient / (1024 * 1024)} MB document storage limit.");
+
+        string? storageKey = null;
         try
         {
+            storageKey = await _storage.SaveAsync(content, Path.GetExtension(fileName));
+            var doc = new MedicalDocument
+            {
+                PatientProfileId = patientProfileId,
+                UploadedByUserId = userId,
+                FileName = fileName,
+                FileUrl = storageKey,
+                ContentType = contentType,
+                DocumentType = documentType,
+                FileSizeBytes = fileSizeBytes,
+                AppointmentId = appointmentId
+            };
             _context.MedicalDocuments.Add(doc);
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return MapToDto(doc);
         }
         catch
         {
-            await _storage.DeleteAsync(storageKey);
+            if (storageKey != null)
+                await _storage.DeleteAsync(storageKey);
             throw;
         }
-        return MapToDto(doc);
     }
 
-    public async Task DeleteAsync(Guid id, string userId)
+    public async Task DeleteAsync(Guid id, string userId, string role)
     {
         var doc = await _context.MedicalDocuments
             .Include(d => d.PatientProfile)
+            .Include(d => d.Appointment).ThenInclude(a => a!.DoctorProfile)
             .FirstOrDefaultAsync(d => d.Id == id)
             ?? throw new NotFoundException("Document", id);
 
-        if (doc.UploadedByUserId != userId && doc.PatientProfile.UserId != userId && !await IsAdminAsync(userId))
+        if (!CanDelete(doc, userId, role))
             throw new ForbiddenException("You cannot delete this document.");
 
         var storageKey = doc.FileUrl;
@@ -168,6 +190,21 @@ public class DocumentService : IDocumentService
         await _storage.DeleteAsync(storageKey);
         _context.MedicalDocuments.Remove(doc);
         await _context.SaveChangesAsync();
+    }
+
+    private static bool CanDelete(MedicalDocument document, string userId, string role)
+    {
+        if (role == "Admin") return true;
+        if (role == "Patient") return document.PatientProfile.UserId == userId;
+        if (role != "Doctor" || document.UploadedByUserId != userId || document.Appointment == null)
+            return false;
+
+        var doctor = document.Appointment.DoctorProfile;
+        return doctor.UserId == userId && ClinicalAccessRules.CanDoctorAccessClinicalData(
+            doctor.Id,
+            document.Appointment.DoctorProfileId,
+            doctor.ApprovalStatus,
+            document.Appointment.Status);
     }
 
     private static MedicalDocumentDto MapToDto(MedicalDocument d) => new()

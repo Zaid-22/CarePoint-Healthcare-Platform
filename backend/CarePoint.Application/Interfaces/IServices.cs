@@ -119,7 +119,7 @@ public interface IDocumentService
     Task<MedicalDocumentDto> UploadAsync(Guid patientProfileId, string userId, string fileName,
         Stream content, string contentType, string? documentType, long fileSizeBytes,
         Guid? appointmentId = null);
-    Task DeleteAsync(Guid id, string userId);
+    Task DeleteAsync(Guid id, string userId, string role);
 }
 
 public interface IMedicalDocumentStorage

@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using System.Net;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,17 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Issuer) || string.IsNullOrWhiteSpace(j
     throw new InvalidOperationException("JwtSettings:Issuer and JwtSettings:Audience must be configured.");
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection(EmailSettings.SectionName));
+var medicalDocumentSettings = builder.Configuration
+    .GetSection(MedicalDocumentSettings.SectionName)
+    .Get<MedicalDocumentSettings>() ?? new MedicalDocumentSettings();
+if (medicalDocumentSettings.MaxBytesPerPatient <= 0 ||
+    medicalDocumentSettings.UploadPermitLimit <= 0 ||
+    medicalDocumentSettings.UploadWindowMinutes <= 0)
+{
+    throw new InvalidOperationException("Medical document quota and rate-limit settings must be greater than zero.");
+}
+builder.Services.Configure<MedicalDocumentSettings>(
+    builder.Configuration.GetSection(MedicalDocumentSettings.SectionName));
 
 // --- Authentication ---
 builder.Services.AddAuthentication(options =>
@@ -81,6 +93,17 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("document-upload", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = medicalDocumentSettings.UploadPermitLimit,
+                Window = TimeSpan.FromMinutes(medicalDocumentSettings.UploadWindowMinutes),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 // --- CORS ---
@@ -125,6 +148,7 @@ app.UseForwardedHeaders();
 
 // Must be called before UseHttpsRedirection and UseAuthorization/UseAuthentication
 app.UseCors();
+app.UseAuthentication();
 app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
@@ -136,7 +160,6 @@ else
 {
     app.UseHttpsRedirection();
 }
-app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });

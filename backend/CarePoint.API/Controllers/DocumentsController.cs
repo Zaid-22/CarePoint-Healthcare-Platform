@@ -5,6 +5,7 @@ using CarePoint.Application.Interfaces;
 using CarePoint.Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace CarePoint.API.Controllers;
 
@@ -44,6 +45,7 @@ public class DocumentsController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting("document-upload")]
     [RequestSizeLimit(MaxFileSizeBytes + 64 * 1024)]
     public async Task<ActionResult<ApiResponse<MedicalDocumentDto>>> Upload(
         [FromForm] UploadMedicalDocumentRequest request)
@@ -79,7 +81,7 @@ public class DocumentsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<string>>> Delete(Guid id)
     {
-        await _documentService.DeleteAsync(id, UserId);
+        await _documentService.DeleteAsync(id, UserId, Role);
         return Ok(ApiResponse<string>.SuccessResponse("Document deleted."));
     }
 
