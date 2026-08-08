@@ -106,6 +106,20 @@ public class SeniorReviewRegressionTests
     }
 
     [Fact]
+    public void DisabledDoctorAvailability_IsHiddenFromPublicCallers()
+    {
+        Assert.False(DoctorDirectoryAccessRules.CanViewAvailability(
+            DoctorApprovalStatus.Approved, "doctor-user", null, null,
+            isAccountDisabled: true));
+        Assert.True(DoctorDirectoryAccessRules.CanViewAvailability(
+            DoctorApprovalStatus.Approved, "doctor-user", "doctor-user", "Doctor",
+            isAccountDisabled: true));
+        Assert.True(DoctorDirectoryAccessRules.CanViewAvailability(
+            DoctorApprovalStatus.Approved, "doctor-user", "admin-user", "Admin",
+            isAccountDisabled: true));
+    }
+
+    [Fact]
     public void AvailabilityChange_CannotOrphanFutureBooking()
     {
         var appointments = new[]

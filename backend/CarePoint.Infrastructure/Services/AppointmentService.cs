@@ -302,6 +302,14 @@ public class AppointmentService : IAppointmentService
         TimeOnly endTime,
         Guid? excludedAppointmentId = null)
     {
+        var canAcceptBookings = await _context.DoctorProfiles.AsNoTracking()
+            .AnyAsync(doctor => doctor.Id == doctorProfileId &&
+                doctor.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                _context.Users.Any(user => user.Id == doctor.UserId &&
+                    user.LockoutEnd != DateTimeOffset.MaxValue));
+        if (!canAcceptBookings)
+            throw new BadRequestException("This doctor is not currently available for booking.");
+
         var availabilities = await _context.DoctorAvailabilities
             .Where(availability => availability.DoctorProfileId == doctorProfileId &&
                 availability.DayOfWeek == appointmentDate.DayOfWeek)

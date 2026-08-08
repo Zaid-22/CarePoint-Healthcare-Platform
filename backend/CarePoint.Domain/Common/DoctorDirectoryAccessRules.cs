@@ -8,8 +8,9 @@ public static class DoctorDirectoryAccessRules
         DoctorApprovalStatus approvalStatus,
         string profileUserId,
         string? requesterUserId,
-        string? requesterRole) =>
-        approvalStatus == DoctorApprovalStatus.Approved ||
+        string? requesterRole,
+        bool isAccountDisabled = false) =>
+        (!isAccountDisabled && approvalStatus == DoctorApprovalStatus.Approved) ||
         requesterRole == "Admin" ||
         (requesterRole == "Doctor" && profileUserId == requesterUserId);
 }

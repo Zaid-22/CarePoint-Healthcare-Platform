@@ -6,6 +6,7 @@ using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
+using CarePoint.Infrastructure.Identity;
 using CarePoint.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -141,7 +142,7 @@ public class DoctorValidatorTests
     {
         await using var context = CreateContext();
         var doctor = CreateDoctor(DoctorApprovalStatus.Approved);
-        context.DoctorProfiles.Add(doctor);
+        context.AddRange(doctor, CreateUser(doctor.UserId, lockoutEnd: null));
         await context.SaveChangesAsync();
 
         var image = await CreateService(context).GetProfileImageAsync(doctor.Id);
@@ -150,6 +151,63 @@ public class DoctorValidatorTests
             Assert.Equal("image/png", image.ContentType);
             Assert.Equal(new byte[] { 1, 2, 3 }, await ReadAllBytesAsync(image.Content));
         }
+    }
+
+    [Fact]
+    public async Task PermanentlyDisabledDoctorIsHiddenFromPublicDirectoryAndSlots()
+    {
+        await using var context = CreateContext();
+        var doctor = CreateDoctor(DoctorApprovalStatus.Approved);
+        var user = CreateUser(doctor.UserId, DateTimeOffset.MaxValue);
+        var date = new DateTime(2026, 8, 10);
+        context.AddRange(user, doctor, new DoctorAvailability
+        {
+            DoctorProfile = doctor,
+            DayOfWeek = date.DayOfWeek,
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(10, 0),
+            SlotDurationMinutes = 30
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var publicDirectory = await service.GetAllAsync();
+        var adminDirectory = await service.GetAllForAdminAsync();
+
+        Assert.Empty(publicDirectory.Items);
+        Assert.Equal(0, publicDirectory.TotalCount);
+        Assert.Single(adminDirectory.Items);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetByIdAsync(doctor.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetAvailableSlotsAsync(doctor.Id, date));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetProfileImageAsync(doctor.Id));
+    }
+
+    [Fact]
+    public async Task TemporaryLockoutDoesNotRemoveDoctorFromDirectoryOrSlots()
+    {
+        await using var context = CreateContext();
+        var doctor = CreateDoctor(DoctorApprovalStatus.Approved);
+        var user = CreateUser(doctor.UserId, DateTimeOffset.UtcNow.AddMinutes(5));
+        var date = new DateTime(2026, 8, 10);
+        context.AddRange(user, doctor, new DoctorAvailability
+        {
+            DoctorProfile = doctor,
+            DayOfWeek = date.DayOfWeek,
+            StartTime = new TimeOnly(12, 0),
+            EndTime = new TimeOnly(13, 0),
+            SlotDurationMinutes = 30
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var publicDirectory = await service.GetAllAsync();
+        var slots = await service.GetAvailableSlotsAsync(doctor.Id, date);
+
+        Assert.Single(publicDirectory.Items);
+        Assert.Equal(1, publicDirectory.TotalCount);
+        Assert.Equal(2, slots.Count);
     }
 
     private static ApplicationDbContext CreateContext()
@@ -173,13 +231,32 @@ public class DoctorValidatorTests
         };
     }
 
+    private static ApplicationUser CreateUser(string id, DateTimeOffset? lockoutEnd) => new()
+    {
+        Id = id,
+        UserName = $"{id}@example.com",
+        NormalizedUserName = $"{id.ToUpperInvariant()}@EXAMPLE.COM",
+        Email = $"{id}@example.com",
+        NormalizedEmail = $"{id.ToUpperInvariant()}@EXAMPLE.COM",
+        FirstName = "Test",
+        LastName = "Doctor",
+        LockoutEnabled = true,
+        LockoutEnd = lockoutEnd
+    };
+
     private static DoctorService CreateService(ApplicationDbContext context) => new(
         context,
         null!,
         null!,
-        null!,
+        new FixedClinicClock(),
         new UnusedProfileImageStorage(),
         NullLogger<DoctorService>.Instance);
+
+    private sealed class FixedClinicClock : IClinicClock
+    {
+        public DateTime UtcNow => new(2026, 8, 1, 8, 0, 0, DateTimeKind.Utc);
+        public DateTime LocalNow => new(2026, 8, 1, 11, 0, 0, DateTimeKind.Unspecified);
+    }
 
     private sealed class UnusedProfileImageStorage : IProfileImageStorage
     {

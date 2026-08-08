@@ -4,6 +4,7 @@ using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
+using CarePoint.Infrastructure.Identity;
 using CarePoint.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -21,7 +22,12 @@ public class SchedulingIntegrityTests
         var otherDoctor = ApprovedDoctor("other-doctor");
         var date = new DateTime(2026, 8, 10);
 
-        context.AddRange(patient, requestedDoctor, otherDoctor);
+        context.AddRange(
+            patient,
+            requestedDoctor,
+            otherDoctor,
+            EnabledUser(requestedDoctor.UserId),
+            EnabledUser(otherDoctor.UserId));
         context.DoctorAvailabilities.Add(new DoctorAvailability
         {
             DoctorProfile = requestedDoctor,
@@ -72,7 +78,13 @@ public class SchedulingIntegrityTests
             Status = AppointmentStatus.Pending
         };
 
-        context.AddRange(patient, requestedDoctor, otherDoctor, appointment);
+        context.AddRange(
+            patient,
+            requestedDoctor,
+            otherDoctor,
+            appointment,
+            EnabledUser(requestedDoctor.UserId),
+            EnabledUser(otherDoctor.UserId));
         context.DoctorAvailabilities.Add(new DoctorAvailability
         {
             DoctorProfile = requestedDoctor,
@@ -105,10 +117,80 @@ public class SchedulingIntegrityTests
             }));
     }
 
+    [Fact]
+    public async Task DisabledDoctorRejectsNewBookingAndReschedule()
+    {
+        await using var context = CreateContext();
+        var patient = new PatientProfile { UserId = "patient-user" };
+        var doctor = ApprovedDoctor("disabled-doctor");
+        var disabledUser = new ApplicationUser
+        {
+            Id = doctor.UserId,
+            UserName = "disabled-doctor@example.com",
+            Email = "disabled-doctor@example.com",
+            FirstName = "Disabled",
+            LastName = "Doctor",
+            LockoutEnabled = true,
+            LockoutEnd = DateTimeOffset.MaxValue
+        };
+        var newDate = new DateTime(2026, 8, 10);
+        var existingAppointment = new Appointment
+        {
+            PatientProfile = patient,
+            DoctorProfile = doctor,
+            AppointmentDate = new DateTime(2026, 8, 8),
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(9, 30),
+            Status = AppointmentStatus.Pending
+        };
+        context.AddRange(patient, doctor, disabledUser, existingAppointment);
+        context.DoctorAvailabilities.Add(new DoctorAvailability
+        {
+            DoctorProfile = doctor,
+            DayOfWeek = newDate.DayOfWeek,
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(12, 0),
+            SlotDurationMinutes = 30
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        await Assert.ThrowsAsync<BadRequestException>(() => service.CreateAsync(
+            patient.UserId,
+            new CreateAppointmentDto
+            {
+                DoctorProfileId = doctor.Id,
+                AppointmentDate = newDate,
+                StartTime = new TimeOnly(10, 0),
+                EndTime = new TimeOnly(10, 30)
+            }));
+        await Assert.ThrowsAsync<BadRequestException>(() => service.RescheduleAsync(
+            existingAppointment.Id,
+            patient.UserId,
+            new RescheduleAppointmentDto
+            {
+                NewAppointmentDate = newDate,
+                NewStartTime = new TimeOnly(10, 0),
+                NewEndTime = new TimeOnly(10, 30)
+            }));
+
+        Assert.Single(context.Appointments);
+    }
+
     private static DoctorProfile ApprovedDoctor(string userId) => new()
     {
         UserId = userId,
         ApprovalStatus = DoctorApprovalStatus.Approved
+    };
+
+    private static ApplicationUser EnabledUser(string id) => new()
+    {
+        Id = id,
+        UserName = $"{id}@example.com",
+        Email = $"{id}@example.com",
+        FirstName = "Enabled",
+        LastName = "Doctor",
+        LockoutEnabled = true
     };
 
     private static AppointmentService CreateService(ApplicationDbContext context) =>

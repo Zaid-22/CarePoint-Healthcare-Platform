@@ -42,7 +42,9 @@ public class DoctorService : IDoctorService
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id &&
-                d.ApprovalStatus == DoctorApprovalStatus.Approved)
+                d.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                _context.Users.Any(user => user.Id == d.UserId &&
+                    user.LockoutEnd != DateTimeOffset.MaxValue))
             ?? throw new NotFoundException("Doctor", id);
         var user = await _userManager.FindByIdAsync(doctor.UserId)
             ?? throw new NotFoundException("User", doctor.UserId);
@@ -71,7 +73,9 @@ public class DoctorService : IDoctorService
         var query = _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
-            .Where(d => d.ApprovalStatus == DoctorApprovalStatus.Approved)
+            .Where(d => d.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                _context.Users.Any(user => user.Id == d.UserId &&
+                    user.LockoutEnd != DateTimeOffset.MaxValue))
             .AsNoTracking()
             .AsSplitQuery()
             .AsQueryable();
@@ -330,13 +334,18 @@ public class DoctorService : IDoctorService
                 doctor.UserId,
                 doctor.ApprovalStatus,
                 doctor.ProfilePictureStorageKey,
-                doctor.ArchivedProfilePictureValue
+                doctor.ArchivedProfilePictureValue,
+                IsAccountEnabled = _context.Users.Any(user => user.Id == doctor.UserId &&
+                    user.LockoutEnd != DateTimeOffset.MaxValue)
             })
             .FirstOrDefaultAsync();
         var canRead = doctor != null &&
-            (doctor.ApprovalStatus == DoctorApprovalStatus.Approved ||
-             requesterRole == "Admin" ||
-             (requesterRole == "Doctor" && doctor.UserId == requesterUserId));
+            DoctorDirectoryAccessRules.CanViewAvailability(
+                doctor.ApprovalStatus,
+                doctor.UserId,
+                requesterUserId,
+                requesterRole,
+                isAccountDisabled: !doctor.IsAccountEnabled);
         if (!canRead)
             throw new NotFoundException("Profile image", doctorId);
 
@@ -425,12 +434,19 @@ public class DoctorService : IDoctorService
     {
         var doctor = await _context.DoctorProfiles.AsNoTracking()
             .Where(d => d.Id == doctorId)
-            .Select(d => new { d.UserId, d.ApprovalStatus })
+            .Select(d => new
+            {
+                d.UserId,
+                d.ApprovalStatus,
+                IsAccountEnabled = _context.Users.Any(user => user.Id == d.UserId &&
+                    user.LockoutEnd != DateTimeOffset.MaxValue)
+            })
             .FirstOrDefaultAsync()
             ?? throw new NotFoundException("Doctor", doctorId);
 
         if (!DoctorDirectoryAccessRules.CanViewAvailability(
-                doctor.ApprovalStatus, doctor.UserId, requesterUserId, requesterRole))
+                doctor.ApprovalStatus, doctor.UserId, requesterUserId, requesterRole,
+                isAccountDisabled: !doctor.IsAccountEnabled))
             throw new NotFoundException("Doctor", doctorId);
 
         var slots = await _context.DoctorAvailabilities
@@ -535,9 +551,12 @@ public class DoctorService : IDoctorService
 
     public async Task<IReadOnlyList<AvailableSlotDto>> GetAvailableSlotsAsync(Guid doctorId, DateTime date)
     {
-        var isApproved = await _context.DoctorProfiles.AsNoTracking()
-            .AnyAsync(d => d.Id == doctorId && d.ApprovalStatus == DoctorApprovalStatus.Approved);
-        if (!isApproved)
+        var isBookable = await _context.DoctorProfiles.AsNoTracking()
+            .AnyAsync(d => d.Id == doctorId &&
+                d.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                _context.Users.Any(user => user.Id == d.UserId &&
+                    user.LockoutEnd != DateTimeOffset.MaxValue));
+        if (!isBookable)
             throw new NotFoundException("Doctor", doctorId);
 
         var dayOfWeek = date.DayOfWeek;
