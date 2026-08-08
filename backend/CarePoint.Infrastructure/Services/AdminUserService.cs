@@ -121,11 +121,15 @@ public sealed class AdminUserService : IAdminUserService
         if (disabled)
         {
             var revokedAt = DateTime.UtcNow;
-            await _context.RefreshTokens
+            var activeTokens = await _context.RefreshTokens
                 .Where(token => token.UserId == id && !token.IsRevoked)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(token => token.IsRevoked, true)
-                    .SetProperty(token => token.RevokedAt, revokedAt));
+                .ToListAsync();
+            foreach (var token in activeTokens)
+            {
+                token.IsRevoked = true;
+                token.RevokedAt = revokedAt;
+            }
+            await _context.SaveChangesAsync();
         }
 
         await transaction.CommitAsync();

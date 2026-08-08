@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: "CarePointCi#2026!Database"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'CarePointCi#2026!Database' -C -Q 'SELECT 1' -b -o /dev/null"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 20s
+    env:
+      ConnectionStrings__DefaultConnection: "Server=127.0.0.1,1433;Database=CarePointCi;User Id=sa;Password=CarePointCi#2026!Database;TrustServerCertificate=True"
+      CAREPOINT_TEST_SQL: "Server=127.0.0.1,1433;Database=CarePointCi;User Id=sa;Password=CarePointCi#2026!Database;TrustServerCertificate=True"
+      JwtSettings__Secret: "CarePointCiSigningKey-2026-AtLeast64Characters-Long-And-Ephemeral"
+      JwtSettings__Issuer: CarePoint.CI
+      JwtSettings__Audience: CarePoint.CI
+      Database__InitializeOnStartup: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore backend
+        run: dotnet restore CarePoint.slnx
+
+      - name: Build backend
+        run: dotnet build CarePoint.slnx --configuration Release --no-restore
+
+      - name: Apply database migrations
+        run: dotnet run --project backend/CarePoint.API/CarePoint.API.csproj --configuration Release --no-build -- --initialize-database
+
+      - name: Test backend
+        run: dotnet test backend/CarePoint.Tests/CarePoint.Tests.csproj --configuration Release --no-build -m:1 /nodeReuse:false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm test
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build

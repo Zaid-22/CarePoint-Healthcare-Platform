@@ -4,24 +4,12 @@ import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import PaginationControls from '../../components/common/PaginationControls';
 import { CalendarIcon } from '../../components/common/Icons';
 import type { ApiResponse, AppointmentDto } from '../../types';
+import {
+  appointmentStatusMap as statusMap,
+  getAllowedAdminAppointmentTransitions,
+} from '../../utils/adminAppointments';
 
 const PAGE_SIZE = 20;
-
-const statusMap: Record<number, { label: string; badge: string }> = {
-  0: { label: 'Pending', badge: 'badge-amber' },
-  1: { label: 'Accepted', badge: 'badge-teal' },
-  2: { label: 'Rejected', badge: 'badge-rose' },
-  3: { label: 'In progress', badge: 'badge-teal' },
-  4: { label: 'Completed', badge: 'badge-stone' },
-  5: { label: 'Cancelled', badge: 'badge-rose' },
-  6: { label: 'No show', badge: 'badge-stone' },
-};
-
-const allowedTransitions: Record<number, number[]> = {
-  0: [1, 2, 5],
-  1: [3, 4, 5, 6],
-  3: [4, 5, 6],
-};
 
 function displayDate(value: string) {
   const datePart = value.split('T')[0];
@@ -133,7 +121,7 @@ export default function AdminAppointmentsPage() {
           <div className="admin-resource-list" role="list">
             {appointments.map((appointment) => {
               const status = statusMap[appointment.status] ?? { label: 'Unknown', badge: 'badge-stone' };
-              const transitions = allowedTransitions[appointment.status] ?? [];
+              const transitions = getAllowedAdminAppointmentTransitions(appointment.status);
               const selectedStatus = selectedStatuses[appointment.id] ?? '';
               return (
                 <article className="admin-appointment-row" key={appointment.id} role="listitem">

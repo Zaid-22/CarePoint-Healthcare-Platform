@@ -126,6 +126,64 @@ public class DocumentSecurityTests
         Assert.Single(context.MedicalDocuments);
     }
 
+    [Fact]
+    public async Task UploadDeletesStoredFileWhenDatabaseWriteFails()
+    {
+        var options = CreateOptions($"document-save-failure-{Guid.NewGuid()}");
+        await using var context = new FailingDocumentSaveContext(options);
+        var patient = new PatientProfile { UserId = "patient-user" };
+        context.Add(patient);
+        await context.SaveChangesAsync();
+        context.FailDocumentWrites = true;
+        var storage = new RecordingStorage();
+        var service = CreateService(context, storage);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UploadAsync(
+            patient.Id,
+            patient.UserId,
+            "new.pdf",
+            new MemoryStream(new byte[4]),
+            "application/pdf",
+            null,
+            4));
+
+        Assert.Equal(1, storage.SaveCount);
+        Assert.Equal(1, storage.DeleteCount);
+        Assert.Empty(context.MedicalDocuments);
+    }
+
+    [Fact]
+    public async Task FailedPhysicalDeleteLeavesRetryableTombstone()
+    {
+        await using var context = CreateContext();
+        var patient = new PatientProfile { UserId = "patient-user" };
+        var document = new MedicalDocument
+        {
+            PatientProfile = patient,
+            UploadedByUserId = patient.UserId,
+            FileName = "report.pdf",
+            FileUrl = "stored-report",
+            ContentType = "application/pdf",
+            FileSizeBytes = 100
+        };
+        context.Add(document);
+        await context.SaveChangesAsync();
+        var storage = new RecordingStorage { FailDeletes = true };
+        var service = CreateService(context, storage);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.DeleteAsync(document.Id, patient.UserId, "Patient"));
+
+        var tombstone = await context.MedicalDocuments.FindAsync(document.Id);
+        Assert.NotNull(tombstone?.DeletionRequestedAt);
+        storage.FailDeletes = false;
+
+        await service.DeleteAsync(document.Id, patient.UserId, "Patient");
+
+        Assert.Null(await context.MedicalDocuments.FindAsync(document.Id));
+        Assert.Equal(2, storage.DeleteCount);
+    }
+
     private static DocumentService CreateService(
         ApplicationDbContext context, RecordingStorage storage, long maxBytesPerPatient = 1024) =>
         new(context, null!, storage, Options.Create(new MedicalDocumentSettings
@@ -135,17 +193,20 @@ public class DocumentSecurityTests
 
     private static ApplicationDbContext CreateContext()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase($"document-security-{Guid.NewGuid()}")
+        return new ApplicationDbContext(CreateOptions($"document-security-{Guid.NewGuid()}"));
+    }
+
+    private static DbContextOptions<ApplicationDbContext> CreateOptions(string databaseName) =>
+        new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName)
             .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
-        return new ApplicationDbContext(options);
-    }
 
     private sealed class RecordingStorage : IMedicalDocumentStorage
     {
         public int SaveCount { get; private set; }
         public int DeleteCount { get; private set; }
+        public bool FailDeletes { get; set; }
 
         public Task<string> SaveAsync(
             Stream content, string fileExtension, CancellationToken cancellationToken = default)
@@ -161,7 +222,25 @@ public class DocumentSecurityTests
         public Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default)
         {
             DeleteCount++;
+            if (FailDeletes) throw new IOException("Simulated storage failure.");
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailingDocumentSaveContext : ApplicationDbContext
+    {
+        public bool FailDocumentWrites { get; set; }
+
+        public FailingDocumentSaveContext(DbContextOptions<ApplicationDbContext> options)
+            : base(options) { }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (FailDocumentWrites && ChangeTracker.Entries<MedicalDocument>()
+                    .Any(entry => entry.State == EntityState.Added))
+                throw new InvalidOperationException("Simulated database failure.");
+
+            return base.SaveChangesAsync(cancellationToken);
         }
     }
 }
