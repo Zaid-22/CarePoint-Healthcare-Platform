@@ -19,6 +19,20 @@ public class DoctorDto
     public List<ClinicDto> Clinics { get; set; } = new();
 }
 
+public class PublicDoctorDto
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string? Bio { get; set; }
+    public decimal ConsultationFee { get; set; }
+    public string? ProfilePictureUrl { get; set; }
+    public List<SpecialtyDto> Specialties { get; set; } = new();
+    public List<ClinicDto> Clinics { get; set; } = new();
+}
+
+public sealed record ProfileImageContent(Stream Content, string ContentType);
+
 public sealed class DoctorAdminSummaryDto
 {
     public int TotalRegistered { get; set; }

@@ -42,6 +42,7 @@ export default function DoctorProfilePage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeTab, setActiveTab] = useState<'practice' | 'specialties' | 'schedule' | 'avatar' | 'preview'>('practice');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -160,22 +161,38 @@ export default function DoctorProfilePage() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit. Please choose a smaller image.');
+    if (file.size > 1024 * 1024) {
+      setErrorMsg('Profile images must be 1 MB or smaller.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setProfilePictureUrl(reader.result);
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setErrorMsg('Only JPG and PNG profile images are supported.');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      setErrorMsg(null);
+      setSuccessMsg(null);
+      const form = new FormData();
+      form.append('file', file);
+      const response = await api.post<ApiResponse<DoctorDto>>('/doctors/me/avatar', form);
+      if (response.data.data) {
+        setProfile(response.data.data);
+        setProfilePictureUrl(response.data.data.profilePictureUrl || '');
+        setSuccessMsg('Profile image uploaded securely.');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to upload profile image.');
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
+    }
   };
 
   if (loading) {
@@ -378,6 +395,7 @@ export default function DoctorProfilePage() {
                 <input
                   className="form-input"
                   type="number"
+                  min="0"
                   step="0.01"
                   placeholder="e.g. 75.00"
                   value={consultationFee}
@@ -390,6 +408,7 @@ export default function DoctorProfilePage() {
                 <input
                   className="form-input"
                   type="tel"
+                  maxLength={20}
                   placeholder="+962 7 9100 1111"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
@@ -416,6 +435,7 @@ export default function DoctorProfilePage() {
               <textarea
                 className="form-input"
                 rows={5}
+                maxLength={2000}
                 placeholder="Detail your medical degree, hospital affiliations, specialized procedures, and patient care philosophy..."
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
@@ -689,13 +709,14 @@ export default function DoctorProfilePage() {
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <label
                       className="btn btn-primary glow-btn"
-                      style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                      style={{ cursor: uploadingAvatar ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: uploadingAvatar ? 0.65 : 1 }}
                     >
-                      <FolderIcon size={18} /> Select Image File
+                      <FolderIcon size={18} /> {uploadingAvatar ? 'Uploading...' : 'Select Image File'}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png"
                         onChange={handleFileUpload}
+                        disabled={uploadingAvatar}
                         style={{ display: 'none' }}
                       />
                     </label>

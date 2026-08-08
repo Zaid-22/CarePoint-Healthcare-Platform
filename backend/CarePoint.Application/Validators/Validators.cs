@@ -4,6 +4,7 @@ using CarePoint.Application.DTOs.Appointments;
 using CarePoint.Application.DTOs.Doctors;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.DTOs.Patients;
+using CarePoint.Domain.Common;
 
 namespace CarePoint.Application.Validators;
 
@@ -21,6 +22,16 @@ public class RegisterValidator : AbstractValidator<RegisterDto>
             .NotEmpty()
             .When(x => x.Role == "Doctor")
             .WithMessage("At least one specialty is required for doctors.");
+        RuleFor(x => x.ConsultationFee)
+            .GreaterThanOrEqualTo(0)
+            .When(x => x.Role == "Doctor" && x.ConsultationFee.HasValue);
+        RuleFor(x => x.Bio).MaximumLength(2000);
+        RuleFor(x => x.PhoneNumber).MaximumLength(20);
+        RuleFor(x => x.Gender).MaximumLength(20);
+        RuleFor(x => x.ProfilePictureUrl)
+            .MaximumLength(1000)
+            .Must(ProfilePictureRules.IsPermittedExternalUrl)
+            .WithMessage("Profile picture URL must be an HTTPS URL.");
     }
 }
 
@@ -115,6 +126,10 @@ public class CreateDoctorValidator : AbstractValidator<CreateDoctorDto>
         RuleFor(x => x.Bio).MaximumLength(2000);
         RuleFor(x => x.PhoneNumber).MaximumLength(20);
         RuleFor(x => x.Gender).MaximumLength(20);
+        RuleFor(x => x.ProfilePictureUrl)
+            .MaximumLength(1000)
+            .Must(ProfilePictureRules.IsPermittedExternalUrl)
+            .WithMessage("Profile picture URL must be an HTTPS URL.");
     }
 }
 
@@ -127,6 +142,10 @@ public class UpdateDoctorValidator : AbstractValidator<UpdateDoctorDto>
         RuleFor(x => x.Bio).MaximumLength(2000);
         RuleFor(x => x.PhoneNumber).MaximumLength(20);
         RuleFor(x => x.Gender).MaximumLength(20);
+        RuleFor(x => x.ProfilePictureUrl)
+            .MaximumLength(1000)
+            .Must(ProfilePictureRules.IsPermittedReference)
+            .WithMessage("Profile picture must be an HTTPS URL or an uploaded CarePoint image.");
     }
 }
 

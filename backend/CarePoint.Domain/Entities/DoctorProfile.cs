@@ -16,6 +16,7 @@ public class DoctorProfile : BaseEntity, ISoftDeletable
     public string? PhoneNumber { get; set; }
     public string? Gender { get; set; }
     public string? ProfilePictureUrl { get; set; }
+    public string? ProfilePictureStorageKey { get; set; }
 
     // Soft delete
     public bool IsDeleted { get; set; }

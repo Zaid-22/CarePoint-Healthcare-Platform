@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
 using System.Data;
+using Microsoft.Extensions.Logging;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -19,18 +20,34 @@ public class DoctorService : IDoctorService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationService _notificationService;
     private readonly IClinicClock _clinicClock;
+    private readonly IProfileImageStorage _profileImageStorage;
+    private readonly ILogger<DoctorService> _logger;
 
     public DoctorService(ApplicationDbContext context, UserManager<ApplicationUser> userManager,
-        INotificationService notificationService, IClinicClock clinicClock)
+        INotificationService notificationService, IClinicClock clinicClock,
+        IProfileImageStorage profileImageStorage, ILogger<DoctorService> logger)
     {
         _context = context;
         _userManager = userManager;
         _notificationService = notificationService;
         _clinicClock = clinicClock;
+        _profileImageStorage = profileImageStorage;
+        _logger = logger;
     }
 
-    public async Task<DoctorDto> GetByIdAsync(Guid id) =>
-        await GetByIdInternalAsync(id, requireApproved: true);
+    public async Task<PublicDoctorDto> GetByIdAsync(Guid id)
+    {
+        var doctor = await _context.DoctorProfiles
+            .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
+            .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == id &&
+                d.ApprovalStatus == DoctorApprovalStatus.Approved)
+            ?? throw new NotFoundException("Doctor", id);
+        var user = await _userManager.FindByIdAsync(doctor.UserId)
+            ?? throw new NotFoundException("User", doctor.UserId);
+        return MapToPublicDto(doctor, user);
+    }
 
     private async Task<DoctorDto> GetByIdInternalAsync(Guid id, bool requireApproved)
     {
@@ -47,7 +64,7 @@ public class DoctorService : IDoctorService
         return MapToDto(doctor, user);
     }
 
-    public async Task<PagedResult<DoctorDto>> GetAllAsync(
+    public async Task<PagedResult<PublicDoctorDto>> GetAllAsync(
         string? specialtyFilter = null, string? nameFilter = null, int skip = 0, int take = 50)
     {
         (skip, take) = Pagination.Normalize(skip, take);
@@ -78,14 +95,15 @@ public class DoctorService : IDoctorService
             .Take(take)
             .ToListAsync();
         var users = await LoadUsersAsync(doctors.Select(d => d.UserId));
-        var result = new List<DoctorDto>();
+        var result = new List<PublicDoctorDto>();
 
         foreach (var doctor in doctors)
         {
-            if (users.TryGetValue(doctor.UserId, out var user)) result.Add(MapToDto(doctor, user));
+            if (users.TryGetValue(doctor.UserId, out var user))
+                result.Add(MapToPublicDto(doctor, user));
         }
 
-        return PagedResult<DoctorDto>.Create(result, totalCount, skip, take);
+        return PagedResult<PublicDoctorDto>.Create(result, totalCount, skip, take);
     }
 
     public async Task<PagedResult<DoctorDto>> GetAllForAdminAsync(
@@ -170,7 +188,7 @@ public class DoctorService : IDoctorService
             ConsultationFee = dto.ConsultationFee,
             PhoneNumber = dto.PhoneNumber,
             Gender = dto.Gender,
-            ProfilePictureUrl = dto.ProfilePictureUrl,
+            ProfilePictureUrl = NormalizeExternalProfilePictureUrl(dto.ProfilePictureUrl),
             ApprovalStatus = DoctorApprovalStatus.Pending
         };
 
@@ -214,7 +232,12 @@ public class DoctorService : IDoctorService
         doctor.ConsultationFee = dto.ConsultationFee;
         doctor.PhoneNumber = dto.PhoneNumber;
         doctor.Gender = dto.Gender;
-        doctor.ProfilePictureUrl = dto.ProfilePictureUrl;
+        var oldStorageKey = doctor.ProfilePictureStorageKey;
+        var profilePicture = ResolveProfilePictureUpdate(doctor, dto.ProfilePictureUrl);
+        doctor.ProfilePictureUrl = profilePicture.Url;
+        doctor.ProfilePictureStorageKey = profilePicture.KeepStoredImage
+            ? doctor.ProfilePictureStorageKey
+            : null;
 
         var requestedSpecialtyIds = dto.SpecialtyIds.Distinct().ToList();
         var validSpecialties = await _context.Specialties
@@ -236,6 +259,8 @@ public class DoctorService : IDoctorService
         }
 
         await _context.SaveChangesAsync();
+        if (oldStorageKey != null && doctor.ProfilePictureStorageKey == null)
+            await DeleteReplacedProfileImageAsync(oldStorageKey);
         return await GetByIdInternalAsync(doctor.Id, requireApproved: false);
     }
 
@@ -259,6 +284,65 @@ public class DoctorService : IDoctorService
         }
 
         return await UpdateProfileAsync(doctor.Id, userId, dto);
+    }
+
+    public async Task<DoctorDto> UploadProfileImageAsync(
+        string userId, Stream content, string fileExtension)
+    {
+        var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
+            ?? throw new NotFoundException("Doctor profile not found.");
+
+        string? newStorageKey = null;
+        var persisted = false;
+        try
+        {
+            newStorageKey = await _profileImageStorage.SaveAsync(content, fileExtension);
+            var oldStorageKey = doctor.ProfilePictureStorageKey;
+            doctor.ProfilePictureStorageKey = newStorageKey;
+            doctor.ProfilePictureUrl =
+                $"/api/doctors/{doctor.Id}/avatar?v={Guid.NewGuid():N}";
+            await _context.SaveChangesAsync();
+            persisted = true;
+
+            if (oldStorageKey != null)
+                await DeleteReplacedProfileImageAsync(oldStorageKey);
+        }
+        catch
+        {
+            if (newStorageKey != null && !persisted)
+                await _profileImageStorage.DeleteAsync(newStorageKey);
+            throw;
+        }
+
+        return await GetByIdInternalAsync(doctor.Id, requireApproved: false);
+    }
+
+    public async Task<ProfileImageContent> GetProfileImageAsync(Guid doctorId)
+    {
+        var storageKey = await _context.DoctorProfiles.AsNoTracking()
+            .Where(doctor => doctor.Id == doctorId)
+            .Select(doctor => doctor.ProfilePictureStorageKey)
+            .FirstOrDefaultAsync();
+        if (storageKey == null)
+            throw new NotFoundException("Profile image", doctorId);
+
+        Stream content;
+        try
+        {
+            content = await _profileImageStorage.OpenReadAsync(storageKey);
+        }
+        catch (FileNotFoundException)
+        {
+            throw new NotFoundException("Profile image", doctorId);
+        }
+
+        var contentType = Path.GetExtension(storageKey).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            _ => "application/octet-stream"
+        };
+        return new ProfileImageContent(content, contentType);
     }
 
     public async Task DeleteAsync(Guid id)
@@ -543,6 +627,47 @@ public class DoctorService : IDoctorService
                 "This availability change would invalidate a future appointment. Reschedule or cancel that appointment first.");
     }
 
+    private static string? NormalizeExternalProfilePictureUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        if (!ProfilePictureRules.IsPermittedExternalUrl(trimmed))
+            throw new BadRequestException("Profile picture URL must be an HTTPS URL.");
+        return trimmed;
+    }
+
+    private static (string? Url, bool KeepStoredImage) ResolveProfilePictureUpdate(
+        DoctorProfile doctor, string? requestedUrl)
+    {
+        if (string.IsNullOrWhiteSpace(requestedUrl)) return (null, false);
+        var trimmed = requestedUrl.Trim();
+        var ownAvatarPath = $"/api/doctors/{doctor.Id}/avatar";
+        if (doctor.ProfilePictureStorageKey != null &&
+            (trimmed == ownAvatarPath ||
+             trimmed.StartsWith(ownAvatarPath + "?", StringComparison.Ordinal)))
+        {
+            return (doctor.ProfilePictureUrl, true);
+        }
+
+        if (!ProfilePictureRules.IsPermittedExternalUrl(trimmed))
+            throw new BadRequestException(
+                "Profile picture must be an HTTPS URL or your uploaded CarePoint image.");
+        return (trimmed, false);
+    }
+
+    private async Task DeleteReplacedProfileImageAsync(string storageKey)
+    {
+        try
+        {
+            await _profileImageStorage.DeleteAsync(storageKey);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception,
+                "Could not delete replaced profile image {StorageKey}", storageKey);
+        }
+    }
+
     private async Task<Dictionary<string, ApplicationUser>> LoadUsersAsync(IEnumerable<string> userIds)
     {
         var ids = userIds.Distinct().ToList();
@@ -564,6 +689,32 @@ public class DoctorService : IDoctorService
         Gender = doctor.Gender,
         ProfilePictureUrl = doctor.ProfilePictureUrl,
         ApprovalStatus = doctor.ApprovalStatus,
+        Specialties = doctor.DoctorSpecialties.Select(ds => new SpecialtyDto
+        {
+            Id = ds.Specialty.Id,
+            Name = ds.Specialty.Name,
+            Description = ds.Specialty.Description,
+            IsActive = ds.Specialty.IsActive
+        }).ToList(),
+        Clinics = doctor.ClinicDoctors.Select(cd => new ClinicDto
+        {
+            Id = cd.Clinic.Id,
+            Name = cd.Clinic.Name,
+            Address = cd.Clinic.Address,
+            PhoneNumber = cd.Clinic.PhoneNumber,
+            City = cd.Clinic.City,
+            IsActive = cd.Clinic.IsActive
+        }).ToList()
+    };
+
+    private static PublicDoctorDto MapToPublicDto(DoctorProfile doctor, ApplicationUser user) => new()
+    {
+        Id = doctor.Id,
+        FirstName = user.FirstName,
+        LastName = user.LastName,
+        Bio = doctor.Bio,
+        ConsultationFee = doctor.ConsultationFee,
+        ProfilePictureUrl = doctor.ProfilePictureUrl,
         Specialties = doctor.DoctorSpecialties.Select(ds => new SpecialtyDto
         {
             Id = ds.Specialty.Id,

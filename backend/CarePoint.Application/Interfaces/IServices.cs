@@ -20,14 +20,17 @@ public interface IPasswordResetEmailSender
 
 public interface IDoctorService
 {
-    Task<DoctorDto> GetByIdAsync(Guid id);
+    Task<PublicDoctorDto> GetByIdAsync(Guid id);
     Task<DoctorDto> GetProfileByUserIdAsync(string userId);
-    Task<PagedResult<DoctorDto>> GetAllAsync(string? specialtyFilter = null, string? nameFilter = null, int skip = 0, int take = 50);
+    Task<PagedResult<PublicDoctorDto>> GetAllAsync(string? specialtyFilter = null, string? nameFilter = null, int skip = 0, int take = 50);
     Task<PagedResult<DoctorDto>> GetAllForAdminAsync(DoctorApprovalStatus? status = null, int skip = 0, int take = 50);
     Task<DoctorAdminSummaryDto> GetAdminSummaryAsync();
     Task<DoctorDto> CreateProfileAsync(string userId, CreateDoctorDto dto);
     Task<DoctorDto> UpdateProfileAsync(Guid id, string userId, UpdateDoctorDto dto);
     Task<DoctorDto> UpdateProfileByUserIdAsync(string userId, UpdateDoctorDto dto);
+    Task<DoctorDto> UploadProfileImageAsync(
+        string userId, Stream content, string fileExtension);
+    Task<ProfileImageContent> GetProfileImageAsync(Guid doctorId);
     Task DeleteAsync(Guid id);
     Task<DoctorDto> ApproveAsync(Guid id);
     Task<DoctorDto> RejectAsync(Guid id);
@@ -125,6 +128,13 @@ public interface IDocumentService
 }
 
 public interface IMedicalDocumentStorage
+{
+    Task<string> SaveAsync(Stream content, string fileExtension, CancellationToken cancellationToken = default);
+    Task<Stream> OpenReadAsync(string storageKey, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default);
+}
+
+public interface IProfileImageStorage
 {
     Task<string> SaveAsync(Stream content, string fileExtension, CancellationToken cancellationToken = default);
     Task<Stream> OpenReadAsync(string storageKey, CancellationToken cancellationToken = default);

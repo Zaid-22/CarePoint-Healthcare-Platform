@@ -29,6 +29,8 @@ public class DoctorProfileConfiguration : IEntityTypeConfiguration<DoctorProfile
         builder.Property(d => d.Bio).HasMaxLength(2000);
         builder.Property(d => d.PhoneNumber).HasMaxLength(20);
         builder.Property(d => d.Gender).HasMaxLength(20);
+        builder.Property(d => d.ProfilePictureUrl).HasMaxLength(1000);
+        builder.Property(d => d.ProfilePictureStorageKey).HasMaxLength(1000);
         builder.Property(d => d.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
     }
 }

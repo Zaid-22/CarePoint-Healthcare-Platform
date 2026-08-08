@@ -265,12 +265,13 @@ export default function RegisterPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
                     <label className="form-label">Consultation Fee (JOD)</label>
-                    <input className="form-input" type="number" step="0.01" placeholder="50.00"
-                      {...register('consultationFee')} />
+                    <input className="form-input" type="number" min="0" step="0.01" placeholder="50.00"
+                      {...register('consultationFee', { min: { value: 0, message: 'Fee cannot be negative' } })} />
+                    {errors.consultationFee && <span className="form-error">{errors.consultationFee.message}</span>}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Phone Number</label>
-                    <input className="form-input" placeholder="+1 234 567 890"
+                    <input className="form-input" maxLength={20} placeholder="+1 234 567 890"
                       {...register('phoneNumber')} />
                   </div>
                 </div>
@@ -287,7 +288,7 @@ export default function RegisterPage() {
 
                 <div className="form-group">
                   <label className="form-label">Profile Picture URL</label>
-                  <input className="form-input" placeholder="https://example.com/my-photo.jpg"
+                  <input className="form-input" type="url" maxLength={1000} placeholder="https://example.com/my-photo.jpg"
                     {...register('profilePictureUrl')} />
                   {profilePicUrl && (
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -304,7 +305,7 @@ export default function RegisterPage() {
 
                 <div className="form-group">
                   <label className="form-label">Professional Bio / Summary</label>
-                  <textarea className="form-input" rows={2} placeholder="Brief summary of your clinical background..."
+                  <textarea className="form-input" rows={2} maxLength={2000} placeholder="Brief summary of your clinical background..."
                     {...register('bio')} />
                 </div>
               </div>

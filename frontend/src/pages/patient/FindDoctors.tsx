@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
-import type { DoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } from '../../types';
+import type { PublicDoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } from '../../types';
 import { getClinicDateString } from '../../utils/clinicTime';
 import PaginationControls from '../../components/common/PaginationControls';
 
 const PAGE_SIZE = 20;
 
 export default function FindDoctors() {
-  const [doctors, setDoctors] = useState<DoctorDto[]>([]);
+  const [doctors, setDoctors] = useState<PublicDoctorDto[]>([]);
   const [specialties, setSpecialties] = useState<SpecialtyDto[]>([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [selectedDoctor, setSelectedDoctor] = useState<DoctorDto | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<PublicDoctorDto | null>(null);
   const [slots, setSlots] = useState<AvailableSlotDto[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getClinicDateString());
   const [bookingSlot, setBookingSlot] = useState<AvailableSlotDto | null>(null);
@@ -42,7 +42,7 @@ export default function FindDoctors() {
         const specialtyName = specialties.find((specialty) => specialty.id === selectedSpecialty)?.name;
         const params = new URLSearchParams({ skip: String(skip), take: String(PAGE_SIZE) });
         if (specialtyName) params.set('specialty', specialtyName);
-        const docRes = await api.get<ApiResponse<DoctorDto[]>>(`/doctors?${params.toString()}`, {
+        const docRes = await api.get<ApiResponse<PublicDoctorDto[]>>(`/doctors?${params.toString()}`, {
           signal: controller.signal,
         });
         setDoctors(docRes.data.data || []);
@@ -58,7 +58,7 @@ export default function FindDoctors() {
     return () => controller.abort();
   }, [selectedSpecialty, skip, specialties]);
 
-  const handleSelectDoctor = async (doc: DoctorDto) => {
+  const handleSelectDoctor = async (doc: PublicDoctorDto) => {
     setSelectedDoctor(doc);
     setBookingSlot(null);
     setBookingSuccess(false);

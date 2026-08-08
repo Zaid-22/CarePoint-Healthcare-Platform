@@ -31,6 +31,17 @@ export interface DoctorDto {
   clinics: ClinicDto[];
 }
 
+export interface PublicDoctorDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  bio?: string;
+  consultationFee: number;
+  profilePictureUrl?: string;
+  specialties: SpecialtyDto[];
+  clinics: ClinicDto[];
+}
+
 export interface DoctorAdminSummaryDto {
   totalRegistered: number;
   pendingCount: number;
