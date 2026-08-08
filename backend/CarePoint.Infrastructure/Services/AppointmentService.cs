@@ -126,16 +126,8 @@ public class AppointmentService : IAppointmentService
             throw new BadRequestException("This doctor is not yet approved for booking.");
 
         await EnsureSlotIsAvailableAsync(dto.DoctorProfileId, dto.AppointmentDate, dto.StartTime, dto.EndTime);
-
-        // Check for double booking
-        var conflict = await _context.Appointments.AnyAsync(a =>
-            a.DoctorProfileId == dto.DoctorProfileId &&
-            a.AppointmentDate.Date == dto.AppointmentDate.Date &&
-            a.StartTime < dto.EndTime && a.EndTime > dto.StartTime &&
-            a.Status != AppointmentStatus.Cancelled && a.Status != AppointmentStatus.Rejected);
-
-        if (conflict)
-            throw new ConflictException("This time slot is already booked. Please select a different time slot.");
+        await EnsurePatientIsAvailableAsync(
+            patient.Id, dto.AppointmentDate, dto.StartTime, dto.EndTime);
 
         var appointment = new Appointment
         {
@@ -235,6 +227,12 @@ public class AppointmentService : IAppointmentService
             dto.NewStartTime,
             dto.NewEndTime,
             appointment.Id);
+        await EnsurePatientIsAvailableAsync(
+            appointment.PatientProfileId,
+            dto.NewAppointmentDate,
+            dto.NewStartTime,
+            dto.NewEndTime,
+            appointment.Id);
 
         appointment.AppointmentDate = dto.NewAppointmentDate;
         appointment.StartTime = dto.NewStartTime;
@@ -328,6 +326,25 @@ public class AppointmentService : IAppointmentService
 
         if (conflict)
             throw new ConflictException("This time slot is already booked. Please select a different time slot.");
+    }
+
+    private async Task EnsurePatientIsAvailableAsync(
+        Guid patientProfileId,
+        DateTime appointmentDate,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        Guid? excludedAppointmentId = null)
+    {
+        var conflict = await _context.Appointments.AnyAsync(a =>
+            a.PatientProfileId == patientProfileId &&
+            a.AppointmentDate.Date == appointmentDate.Date &&
+            (!excludedAppointmentId.HasValue || a.Id != excludedAppointmentId.Value) &&
+            a.StartTime < endTime && a.EndTime > startTime &&
+            a.Status != AppointmentStatus.Cancelled && a.Status != AppointmentStatus.Rejected);
+
+        if (conflict)
+            throw new ConflictException(
+                "You already have an appointment during this time. Please select a different time slot.");
     }
 
     private async Task<IQueryable<Appointment>> GetAccessibleQueryAsync(string userId, string role)
