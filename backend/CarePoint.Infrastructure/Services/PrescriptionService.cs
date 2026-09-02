@@ -26,6 +26,52 @@ public class PrescriptionService : IPrescriptionService
         return await MapToDtoAsync(rx);
     }
 
+    public async Task<IReadOnlyList<PrescriptionRevisionDto>> GetRevisionsAsync(
+        Guid id, string userId, string role)
+    {
+        var prescription = await _context.Prescriptions.AsNoTracking()
+            .FirstOrDefaultAsync(candidate => candidate.Id == id)
+            ?? throw new NotFoundException("Prescription", id);
+        await EnsureCanReadAsync(prescription, userId, role);
+
+        var revisions = await _context.PrescriptionRevisions
+            .Include(revision => revision.Items)
+            .AsNoTracking()
+            .Where(revision => revision.PrescriptionId == id)
+            .OrderByDescending(revision => revision.CreatedAt)
+            .ToListAsync();
+        var editorIds = revisions.Select(revision => revision.EditedByUserId).Distinct().ToList();
+        var editors = await _context.Users.AsNoTracking()
+            .Where(user => editorIds.Contains(user.Id))
+            .ToDictionaryAsync(user => user.Id);
+
+        return revisions.Select(revision =>
+        {
+            editors.TryGetValue(revision.EditedByUserId, out var editor);
+            return new PrescriptionRevisionDto
+            {
+                Id = revision.Id,
+                EditedByName = editor != null
+                    ? $"Dr. {editor.FirstName} {editor.LastName}"
+                    : "Practitioner",
+                ChangeReason = revision.ChangeReason,
+                Notes = revision.Notes,
+                EditedAt = revision.CreatedAt,
+                Items = revision.Items
+                    .OrderBy(item => item.CreatedAt)
+                    .Select(item => new PrescriptionItemDto
+                    {
+                        Id = item.Id,
+                        MedicationName = item.MedicationName,
+                        Dosage = item.Dosage,
+                        Frequency = item.Frequency,
+                        Duration = item.Duration,
+                        Instructions = item.Instructions
+                    }).ToList()
+            };
+        }).ToList();
+    }
+
     public async Task<PagedResult<PrescriptionDto>> GetByAppointmentIdAsync(
         Guid appointmentId, string userId, string role, int skip = 0, int take = 50)
     {
@@ -90,7 +136,7 @@ public class PrescriptionService : IPrescriptionService
             throw new ForbiddenException("Only an approved treating doctor can issue this prescription.");
         if (appointment.Status is not (AppointmentStatus.Accepted or AppointmentStatus.InProgress or AppointmentStatus.Completed))
             throw new BadRequestException("A prescription can only be issued for an accepted or completed appointment.");
-        ValidateItems(dto);
+        ValidateItems(dto.Items);
 
         var rx = new Prescription
         {
@@ -113,8 +159,14 @@ public class PrescriptionService : IPrescriptionService
         return await MapToDtoAsync(rx);
     }
 
-    public async Task<PrescriptionDto> UpdateAsync(Guid id, string userId, CreatePrescriptionDto dto)
+    public async Task<PrescriptionDto> UpdateAsync(Guid id, string userId, UpdatePrescriptionDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.ChangeReason))
+            throw new BadRequestException("A reason is required when correcting a prescription.");
+        if (dto.RowVersion == null || dto.RowVersion.Length != 8)
+            throw new BadRequestException("A valid prescription row version is required.");
+        ValidateItems(dto.Items);
+
         var rx = await _context.Prescriptions
             .Include(p => p.Items)
             .Include(p => p.Appointment)
@@ -126,21 +178,51 @@ public class PrescriptionService : IPrescriptionService
         if (!ClinicalAccessRules.CanDoctorAccessClinicalData(
                 doctor.Id, rx.DoctorProfileId, doctor.ApprovalStatus, rx.Appointment.Status))
             throw new ForbiddenException("Only an approved treating doctor can update this prescription.");
-        ValidateItems(dto);
 
-        rx.Notes = dto.Notes;
-        _context.PrescriptionItems.RemoveRange(rx.Items);
-        rx.Items = dto.Items.Select(i => new PrescriptionItem
+        _context.Entry(rx).Property(prescription => prescription.RowVersion).OriginalValue = dto.RowVersion;
+        var previousItems = rx.Items.ToList();
+        _context.PrescriptionRevisions.Add(new PrescriptionRevision
         {
             PrescriptionId = rx.Id,
-            MedicationName = i.MedicationName,
-            Dosage = i.Dosage,
-            Frequency = i.Frequency,
-            Duration = i.Duration,
-            Instructions = i.Instructions
-        }).ToList();
+            EditedByUserId = userId,
+            ChangeReason = dto.ChangeReason.Trim(),
+            Notes = rx.Notes,
+            PreviousRowVersion = rx.RowVersion.ToArray(),
+            Items = previousItems.Select(item => new PrescriptionRevisionItem
+            {
+                MedicationName = item.MedicationName,
+                Dosage = item.Dosage,
+                Frequency = item.Frequency,
+                Duration = item.Duration,
+                Instructions = item.Instructions
+            }).ToList()
+        });
 
-        await _context.SaveChangesAsync();
+        rx.Notes = dto.Notes;
+        var replacementItems = dto.Items.Select(item => new PrescriptionItem
+        {
+            PrescriptionId = rx.Id,
+            MedicationName = item.MedicationName,
+            Dosage = item.Dosage,
+            Frequency = item.Frequency,
+            Duration = item.Duration,
+            Instructions = item.Instructions
+        }).ToList();
+        _context.PrescriptionItems.RemoveRange(previousItems);
+        _context.PrescriptionItems.AddRange(replacementItems);
+        rx.UpdatedAt = DateTime.UtcNow;
+        _context.Entry(rx).Property(prescription => prescription.UpdatedAt).IsModified = true;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictException(
+                "This prescription was changed by another user. Reload it before applying your correction.");
+        }
+        rx.Items = replacementItems;
         return await MapToDtoAsync(rx);
     }
 
@@ -171,13 +253,13 @@ public class PrescriptionService : IPrescriptionService
         throw new ForbiddenException();
     }
 
-    private static void ValidateItems(CreatePrescriptionDto dto)
+    private static void ValidateItems(IReadOnlyCollection<CreatePrescriptionItemDto>? items)
     {
-        if (dto.Items.Count == 0)
+        if (items == null || items.Count == 0)
             throw new BadRequestException("At least one medication is required.");
-        if (dto.Items.Any(item => string.IsNullOrWhiteSpace(item.MedicationName) ||
-                                  string.IsNullOrWhiteSpace(item.Dosage) ||
-                                  string.IsNullOrWhiteSpace(item.Frequency)))
+        if (items.Any(item => string.IsNullOrWhiteSpace(item.MedicationName) ||
+                              string.IsNullOrWhiteSpace(item.Dosage) ||
+                              string.IsNullOrWhiteSpace(item.Frequency)))
             throw new BadRequestException("Medication name, dosage, and frequency are required.");
     }
 
@@ -210,6 +292,8 @@ public class PrescriptionService : IPrescriptionService
             PatientName = patName,
             Notes = p.Notes,
             CreatedAt = p.CreatedAt,
+            UpdatedAt = p.UpdatedAt,
+            RowVersion = p.RowVersion,
             Items = p.Items.Select(i => new PrescriptionItemDto
             {
                 Id = i.Id,
@@ -247,6 +331,8 @@ public class PrescriptionService : IPrescriptionService
             PatientName = patientNames.GetValueOrDefault(p.PatientProfileId, "Patient"),
             Notes = p.Notes,
             CreatedAt = p.CreatedAt,
+            UpdatedAt = p.UpdatedAt,
+            RowVersion = p.RowVersion,
             Items = p.Items.Select(i => new PrescriptionItemDto
             {
                 Id = i.Id,

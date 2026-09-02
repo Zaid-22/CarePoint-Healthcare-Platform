@@ -112,6 +112,15 @@ public class PrescriptionsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.PagedSuccessResponse(page));
     }
 
+    [HttpGet("{id:guid}/revisions")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionRevisionDto>>>> GetRevisions(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+        var revisions = await _service.GetRevisionsAsync(id, userId, role);
+        return Ok(ApiResponse<IReadOnlyList<PrescriptionRevisionDto>>.SuccessResponse(revisions));
+    }
+
     [Authorize(Roles = "Doctor")]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<PrescriptionDto>>> Create([FromBody] CreatePrescriptionDto dto)
@@ -124,7 +133,7 @@ public class PrescriptionsController : ControllerBase
     [Authorize(Roles = "Doctor")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PrescriptionDto>>> Update(
-        Guid id, [FromBody] CreatePrescriptionDto dto)
+        Guid id, [FromBody] UpdatePrescriptionDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         return Ok(ApiResponse<PrescriptionDto>.SuccessResponse(

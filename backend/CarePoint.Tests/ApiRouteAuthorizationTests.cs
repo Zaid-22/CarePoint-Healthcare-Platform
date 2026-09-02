@@ -1,5 +1,6 @@
 using System.Reflection;
 using CarePoint.API.Controllers;
+using CarePoint.Application.DTOs.Medical;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
@@ -13,6 +14,26 @@ public class ApiRouteAuthorizationTests
     {
         AssertAuthorizedRoute<PrescriptionsController, HttpPutAttribute>(
             nameof(PrescriptionsController.Update), "{id:guid}", "Doctor");
+
+        var bodyParameter = typeof(PrescriptionsController)
+            .GetMethod(nameof(PrescriptionsController.Update))!
+            .GetParameters()
+            .Single(parameter => parameter.GetCustomAttribute<FromBodyAttribute>() != null);
+        Assert.Equal(typeof(UpdatePrescriptionDto), bodyParameter.ParameterType);
+        Assert.Null(typeof(UpdatePrescriptionDto).GetProperty(nameof(CreatePrescriptionDto.AppointmentId)));
+    }
+
+    [Fact]
+    public void PrescriptionRevisionHistoryIsAuthenticated()
+    {
+        var controllerAuthorization = typeof(PrescriptionsController)
+            .GetCustomAttribute<AuthorizeAttribute>();
+        var route = typeof(PrescriptionsController)
+            .GetMethod(nameof(PrescriptionsController.GetRevisions))!
+            .GetCustomAttribute<HttpGetAttribute>();
+
+        Assert.NotNull(controllerAuthorization);
+        Assert.Equal("{id:guid}/revisions", route?.Template);
     }
 
     [Theory]

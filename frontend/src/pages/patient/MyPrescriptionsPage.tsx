@@ -4,6 +4,7 @@ import type { PrescriptionDto, ApiResponse } from '../../types';
 import { PillIcon, DoctorIcon, CalendarIcon, SearchIcon, ClockIcon, InfoIcon, HourglassIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
+import PrescriptionRevisionHistory from '../../components/medical/PrescriptionRevisionHistory';
 
 const PAGE_SIZE = 20;
 
@@ -186,6 +187,7 @@ export default function MyPrescriptionsPage() {
                   </div>
                 ))}
               </div>
+              <PrescriptionRevisionHistory prescriptionId={rx.id} />
             </div>
           ))}
           <PaginationControls

@@ -15,6 +15,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options) { }
 
+    protected ApplicationDbContext(DbContextOptions options)
+        : base(options) { }
+
     public DbSet<PatientProfile> PatientProfiles => Set<PatientProfile>();
     public DbSet<DoctorProfile> DoctorProfiles => Set<DoctorProfile>();
     public DbSet<Specialty> Specialties => Set<Specialty>();
@@ -27,6 +30,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MedicalRecordRevision> MedicalRecordRevisions => Set<MedicalRecordRevision>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<PrescriptionItem> PrescriptionItems => Set<PrescriptionItem>();
+    public DbSet<PrescriptionRevision> PrescriptionRevisions => Set<PrescriptionRevision>();
+    public DbSet<PrescriptionRevisionItem> PrescriptionRevisionItems => Set<PrescriptionRevisionItem>();
     public DbSet<MedicalDocument> MedicalDocuments => Set<MedicalDocument>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

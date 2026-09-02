@@ -18,7 +18,9 @@ public class Prescription : BaseEntity
     public PatientProfile PatientProfile { get; set; } = null!;
 
     public string? Notes { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     // Navigation properties
     public ICollection<PrescriptionItem> Items { get; set; } = new List<PrescriptionItem>();
+    public ICollection<PrescriptionRevision> Revisions { get; set; } = new List<PrescriptionRevision>();
 }

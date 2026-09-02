@@ -93,8 +93,10 @@ public interface IPrescriptionService
     Task<PagedResult<PrescriptionDto>> GetByAppointmentIdAsync(Guid appointmentId, string userId, string role, int skip = 0, int take = 50);
     Task<PagedResult<PrescriptionDto>> GetMyPrescriptionsAsync(
         string userId, string? search = null, int skip = 0, int take = 50);
+    Task<IReadOnlyList<PrescriptionRevisionDto>> GetRevisionsAsync(
+        Guid id, string userId, string role);
     Task<PrescriptionDto> CreateAsync(string userId, CreatePrescriptionDto dto);
-    Task<PrescriptionDto> UpdateAsync(Guid id, string userId, CreatePrescriptionDto dto);
+    Task<PrescriptionDto> UpdateAsync(Guid id, string userId, UpdatePrescriptionDto dto);
 }
 
 public interface INotificationService

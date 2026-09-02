@@ -182,6 +182,7 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
     {
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Notes).HasMaxLength(2000);
+        builder.Property(p => p.RowVersion).IsRowVersion();
 
         builder.HasOne(p => p.Appointment)
             .WithMany(a => a.Prescriptions)
@@ -214,6 +215,45 @@ public class PrescriptionItemConfiguration : IEntityTypeConfiguration<Prescripti
         builder.HasOne(pi => pi.Prescription)
             .WithMany(p => p.Items)
             .HasForeignKey(pi => pi.PrescriptionId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class PrescriptionRevisionConfiguration : IEntityTypeConfiguration<PrescriptionRevision>
+{
+    public void Configure(EntityTypeBuilder<PrescriptionRevision> builder)
+    {
+        builder.HasKey(revision => revision.Id);
+        builder.HasIndex(revision => new { revision.PrescriptionId, revision.CreatedAt });
+        builder.HasIndex(revision => revision.EditedByUserId);
+        builder.Property(revision => revision.EditedByUserId).IsRequired().HasMaxLength(450);
+        builder.Property(revision => revision.ChangeReason).IsRequired().HasMaxLength(500);
+        builder.Property(revision => revision.Notes).HasMaxLength(2000);
+        builder.Property(revision => revision.PreviousRowVersion)
+            .IsRequired().HasMaxLength(8).IsFixedLength();
+
+        builder.HasOne(revision => revision.Prescription)
+            .WithMany(prescription => prescription.Revisions)
+            .HasForeignKey(revision => revision.PrescriptionId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class PrescriptionRevisionItemConfiguration : IEntityTypeConfiguration<PrescriptionRevisionItem>
+{
+    public void Configure(EntityTypeBuilder<PrescriptionRevisionItem> builder)
+    {
+        builder.HasKey(item => item.Id);
+        builder.HasIndex(item => item.PrescriptionRevisionId);
+        builder.Property(item => item.MedicationName).IsRequired().HasMaxLength(200);
+        builder.Property(item => item.Dosage).IsRequired().HasMaxLength(100);
+        builder.Property(item => item.Frequency).IsRequired().HasMaxLength(100);
+        builder.Property(item => item.Duration).HasMaxLength(100);
+        builder.Property(item => item.Instructions).HasMaxLength(1000);
+
+        builder.HasOne(item => item.PrescriptionRevision)
+            .WithMany(revision => revision.Items)
+            .HasForeignKey(item => item.PrescriptionRevisionId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

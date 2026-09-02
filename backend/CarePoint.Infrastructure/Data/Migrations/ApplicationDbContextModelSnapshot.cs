@@ -196,6 +196,9 @@ namespace CarePoint.Infrastructure.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("ArchivedProfilePictureValue")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Bio")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -215,9 +218,6 @@ namespace CarePoint.Infrastructure.Data.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
-
-                    b.Property<string>("ArchivedProfilePictureValue")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
@@ -544,6 +544,12 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.Property<Guid>("PatientProfileId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -601,6 +607,95 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.HasIndex("PrescriptionId");
 
                     b.ToTable("PrescriptionItems");
+                });
+
+            modelBuilder.Entity("CarePoint.Domain.Entities.PrescriptionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeReason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EditedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("PrescriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("PreviousRowVersion")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("binary(8)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EditedByUserId");
+
+                    b.HasIndex("PrescriptionId", "CreatedAt");
+
+                    b.ToTable("PrescriptionRevisions");
+                });
+
+            modelBuilder.Entity("CarePoint.Domain.Entities.PrescriptionRevisionItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Dosage")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Duration")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Instructions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MedicationName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("PrescriptionRevisionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrescriptionRevisionId");
+
+                    b.ToTable("PrescriptionRevisionItems");
                 });
 
             modelBuilder.Entity("CarePoint.Domain.Entities.RefreshToken", b =>
@@ -1077,6 +1172,28 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.Navigation("Prescription");
                 });
 
+            modelBuilder.Entity("CarePoint.Domain.Entities.PrescriptionRevision", b =>
+                {
+                    b.HasOne("CarePoint.Domain.Entities.Prescription", "Prescription")
+                        .WithMany("Revisions")
+                        .HasForeignKey("PrescriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Prescription");
+                });
+
+            modelBuilder.Entity("CarePoint.Domain.Entities.PrescriptionRevisionItem", b =>
+                {
+                    b.HasOne("CarePoint.Domain.Entities.PrescriptionRevision", "PrescriptionRevision")
+                        .WithMany("Items")
+                        .HasForeignKey("PrescriptionRevisionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PrescriptionRevision");
+                });
+
             modelBuilder.Entity("CarePoint.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("CarePoint.Infrastructure.Identity.ApplicationUser", null)
@@ -1175,6 +1292,13 @@ namespace CarePoint.Infrastructure.Data.Migrations
                 });
 
             modelBuilder.Entity("CarePoint.Domain.Entities.Prescription", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("CarePoint.Domain.Entities.PrescriptionRevision", b =>
                 {
                     b.Navigation("Items");
                 });

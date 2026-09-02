@@ -56,6 +56,8 @@ public class PrescriptionDto
     public string? Notes { get; set; }
     public List<PrescriptionItemDto> Items { get; set; } = new();
     public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public class CreatePrescriptionDto
@@ -63,6 +65,24 @@ public class CreatePrescriptionDto
     public Guid AppointmentId { get; set; }
     public string? Notes { get; set; }
     public List<CreatePrescriptionItemDto> Items { get; set; } = new();
+}
+
+public class UpdatePrescriptionDto
+{
+    public string? Notes { get; set; }
+    public List<CreatePrescriptionItemDto> Items { get; set; } = new();
+    public string ChangeReason { get; set; } = string.Empty;
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+public class PrescriptionRevisionDto
+{
+    public Guid Id { get; set; }
+    public string EditedByName { get; set; } = string.Empty;
+    public string ChangeReason { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public List<PrescriptionItemDto> Items { get; set; } = new();
+    public DateTime EditedAt { get; set; }
 }
 
 public class PrescriptionItemDto

@@ -4,6 +4,7 @@ import type { AppointmentDto, MedicalRecordDto, ApiResponse } from '../../types'
 import { FileTextIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
 import MedicalDocumentsPanel from '../../components/common/MedicalDocumentsPanel';
+import DoctorPrescriptionPanel from '../../components/medical/DoctorPrescriptionPanel';
 
 const PAGE_SIZE = 20;
 
@@ -23,10 +24,6 @@ export default function DoctorAppointments() {
   const [diagnosis, setDiagnosis] = useState('');
   const [treatment, setTreatment] = useState('');
   const [notes, setNotes] = useState('');
-
-  const [medName, setMedName] = useState('');
-  const [dosage, setDosage] = useState('');
-  const [freq, setFreq] = useState('');
 
   const fetchAppointments = useCallback(async () => {
     try {
@@ -86,26 +83,6 @@ export default function DoctorAppointments() {
       setNotes('');
     } catch {
       alert('Failed to create medical record.');
-    }
-  };
-
-  const handleCreatePrescription = async () => {
-    if (!selectedApp) return;
-    try {
-      await api.post('/prescriptions', {
-        appointmentId: selectedApp.id,
-        notes,
-        items: [
-          { medicationName: medName, dosage, frequency: freq }
-        ]
-      });
-      alert('Prescription created successfully!');
-      setActiveModal(null);
-      setMedName('');
-      setDosage('');
-      setFreq('');
-    } catch {
-      alert('Failed to create prescription.');
     }
   };
 
@@ -185,13 +162,15 @@ export default function DoctorAppointments() {
                       <button className="btn btn-secondary" onClick={() => { setSelectedApp(app); setActiveModal('record'); }}>
                         + Add Record
                       </button>
-                      <button className="btn btn-secondary" onClick={() => { setSelectedApp(app); setActiveModal('prescription'); }}>
-                        + Rx Prescription
-                      </button>
                       <button className="btn btn-primary" onClick={() => handleUpdateStatus(app.id, 4)}>
                         Mark Completed
                       </button>
                     </>
+                  )}
+                  {[1, 3, 4].includes(app.status) && (
+                    <button className="btn btn-secondary" onClick={() => { setSelectedApp(app); setActiveModal('prescription'); }}>
+                      Prescriptions
+                    </button>
                   )}
                 </div>
               </div>
@@ -212,9 +191,15 @@ export default function DoctorAppointments() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         }}>
-          <div className="card page-enter" style={{ width: activeModal === 'history' || activeModal === 'documents' ? 720 : 480, padding: 32, background: 'var(--bg-surface)', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div
+            className="card page-enter"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="doctor-appointment-modal-title"
+            style={{ width: activeModal === 'history' || activeModal === 'documents' || activeModal === 'prescription' ? 780 : 480, maxWidth: 'calc(100vw - 32px)', padding: 32, background: 'var(--bg-surface)', maxHeight: '85vh', overflowY: 'auto' }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700 }}>
+              <h2 id="doctor-appointment-modal-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700 }}>
                 {activeModal === 'record'
                   ? 'New Medical Record'
                   : activeModal === 'prescription'
@@ -223,7 +208,7 @@ export default function DoctorAppointments() {
                   ? `Clinical Documents: ${selectedApp.patientName}`
                   : `Medical History: ${selectedApp.patientName}`}
               </h2>
-              <button className="btn btn-ghost" onClick={() => setActiveModal(null)}>✕</button>
+              <button className="btn btn-ghost" aria-label="Close consultation dialog" onClick={() => setActiveModal(null)}>✕</button>
             </div>
 
             {activeModal === 'record' ? (
@@ -245,25 +230,7 @@ export default function DoctorAppointments() {
                 </button>
               </div>
             ) : activeModal === 'prescription' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="form-group">
-                  <label className="form-label">Medication Name</label>
-                  <input className="form-input" value={medName} onChange={(e) => setMedName(e.target.value)} placeholder="e.g. Amoxicillin" />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div className="form-group">
-                    <label className="form-label">Dosage</label>
-                    <input className="form-input" value={dosage} onChange={(e) => setDosage(e.target.value)} placeholder="e.g. 500mg" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Frequency</label>
-                    <input className="form-input" value={freq} onChange={(e) => setFreq(e.target.value)} placeholder="e.g. Twice daily" />
-                  </div>
-                </div>
-                <button className="btn btn-primary" onClick={handleCreatePrescription} style={{ marginTop: 8 }}>
-                  Issue Prescription
-                </button>
-              </div>
+              <DoctorPrescriptionPanel appointment={selectedApp} />
             ) : activeModal === 'documents' ? (
               <MedicalDocumentsPanel
                 patientProfileId={selectedApp.patientProfileId}

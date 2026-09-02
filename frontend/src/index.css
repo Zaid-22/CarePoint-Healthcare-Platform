@@ -382,6 +382,12 @@ body {
   border-color: #fecdd3;
 }
 
+.alert-success {
+  color: var(--color-teal-800);
+  background: var(--color-teal-50);
+  border-color: var(--color-teal-200);
+}
+
 /* Responsive authentication shell */
 .auth-shell {
   display: grid;

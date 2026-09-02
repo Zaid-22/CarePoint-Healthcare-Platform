@@ -1,5 +1,6 @@
 using CarePoint.Application.Configuration;
 using CarePoint.Application.DTOs.Auth;
+using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
@@ -69,6 +70,121 @@ public class SqlServerIntegrationTests
         await firstContext.SaveChangesAsync();
 
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => secondContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task PrescriptionAggregateRejectsStaleItemOnlyCorrectionOnSqlServer()
+    {
+        if (ConnectionString is null) return;
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlServer(ConnectionString)
+            .Options;
+        Guid prescriptionId;
+        byte[] originalRowVersion;
+        string doctorUserId;
+
+        await using (var setup = new ApplicationDbContext(options))
+        {
+            await setup.Database.MigrateAsync();
+            var suffix = Guid.NewGuid().ToString("N");
+            var patientUser = CreateIdentityUser($"prescription-patient-{suffix}@example.com");
+            var doctorUser = CreateIdentityUser($"prescription-doctor-{suffix}@example.com");
+            var patient = new PatientProfile { UserId = patientUser.Id };
+            var doctor = new DoctorProfile
+            {
+                UserId = doctorUser.Id,
+                ApprovalStatus = DoctorApprovalStatus.Approved
+            };
+            var appointment = new Appointment
+            {
+                PatientProfile = patient,
+                DoctorProfile = doctor,
+                AppointmentDate = new DateTime(2026, 8, 1),
+                StartTime = new TimeOnly(10, 0),
+                EndTime = new TimeOnly(10, 30),
+                Status = AppointmentStatus.Completed
+            };
+            var prescription = new Prescription
+            {
+                Appointment = appointment,
+                DoctorProfile = doctor,
+                PatientProfile = patient,
+                Notes = "Unchanged notes",
+                Items =
+                {
+                    new PrescriptionItem
+                    {
+                        MedicationName = "Original medication",
+                        Dosage = "10 mg",
+                        Frequency = "Daily"
+                    }
+                }
+            };
+            setup.Users.AddRange(patientUser, doctorUser);
+            setup.Prescriptions.Add(prescription);
+            await setup.SaveChangesAsync();
+            prescriptionId = prescription.Id;
+            originalRowVersion = prescription.RowVersion.ToArray();
+            doctorUserId = doctorUser.Id;
+        }
+
+        await using (var firstContext = new ApplicationDbContext(options))
+        {
+            var firstService = new PrescriptionService(firstContext);
+            await firstService.UpdateAsync(prescriptionId, doctorUserId, new UpdatePrescriptionDto
+            {
+                Notes = "Unchanged notes",
+                ChangeReason = "First item correction",
+                RowVersion = originalRowVersion,
+                Items =
+                {
+                    new CreatePrescriptionItemDto
+                    {
+                        MedicationName = "First replacement",
+                        Dosage = "20 mg",
+                        Frequency = "Daily"
+                    }
+                }
+            });
+        }
+
+        await using (var staleContext = new ApplicationDbContext(options))
+        {
+            var staleService = new PrescriptionService(staleContext);
+            await Assert.ThrowsAsync<ConflictException>(() => staleService.UpdateAsync(
+                prescriptionId,
+                doctorUserId,
+                new UpdatePrescriptionDto
+                {
+                    Notes = "Unchanged notes",
+                    ChangeReason = "Stale item correction",
+                    RowVersion = originalRowVersion,
+                    Items =
+                    {
+                        new CreatePrescriptionItemDto
+                        {
+                            MedicationName = "Stale replacement",
+                            Dosage = "30 mg",
+                            Frequency = "Daily"
+                        }
+                    }
+                }));
+        }
+
+        await using var verification = new ApplicationDbContext(options);
+        var current = await verification.Prescriptions
+            .Include(prescription => prescription.Items)
+            .SingleAsync(prescription => prescription.Id == prescriptionId);
+        var revisions = await verification.PrescriptionRevisions
+            .Include(revision => revision.Items)
+            .Where(revision => revision.PrescriptionId == prescriptionId)
+            .ToListAsync();
+
+        Assert.Single(current.Items);
+        Assert.Equal("First replacement", current.Items.Single().MedicationName);
+        var revision = Assert.Single(revisions);
+        Assert.Equal("First item correction", revision.ChangeReason);
+        Assert.Equal("Original medication", Assert.Single(revision.Items).MedicationName);
     }
 
     [Fact]

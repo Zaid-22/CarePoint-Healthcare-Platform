@@ -191,6 +191,31 @@ public class CreatePrescriptionValidator : AbstractValidator<CreatePrescriptionD
     }
 }
 
+public class UpdatePrescriptionValidator : AbstractValidator<UpdatePrescriptionDto>
+{
+    public UpdatePrescriptionValidator()
+    {
+        RuleFor(x => x.Notes).MaximumLength(2000);
+        RuleFor(x => x.ChangeReason)
+            .Must(reason => !string.IsNullOrWhiteSpace(reason))
+            .WithMessage("A reason is required when correcting a prescription.")
+            .MaximumLength(500);
+        RuleFor(x => x.RowVersion)
+            .NotNull()
+            .Must(rowVersion => rowVersion?.Length == 8)
+            .WithMessage("A valid prescription row version is required.");
+        RuleFor(x => x.Items).NotEmpty().WithMessage("At least one medication is required.");
+        RuleForEach(x => x.Items).ChildRules(item =>
+        {
+            item.RuleFor(i => i.MedicationName).NotEmpty().MaximumLength(200);
+            item.RuleFor(i => i.Dosage).NotEmpty().MaximumLength(100);
+            item.RuleFor(i => i.Frequency).NotEmpty().MaximumLength(100);
+            item.RuleFor(i => i.Duration).MaximumLength(100);
+            item.RuleFor(i => i.Instructions).MaximumLength(1000);
+        });
+    }
+}
+
 public class CreateSpecialtyValidator : AbstractValidator<CreateSpecialtyDto>
 {
     public CreateSpecialtyValidator()

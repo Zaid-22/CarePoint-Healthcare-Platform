@@ -22,6 +22,24 @@ export interface PrescriptionDto {
   notes?: string;
   items: PrescriptionItemDto[];
   createdAt: string;
+  updatedAt: string;
+  rowVersion: string;
+}
+
+export interface UpdatePrescriptionRequest {
+  notes?: string;
+  items: Omit<PrescriptionItemDto, 'id'>[];
+  changeReason: string;
+  rowVersion: string;
+}
+
+export interface PrescriptionRevisionDto {
+  id: string;
+  editedByName: string;
+  changeReason: string;
+  notes?: string;
+  items: PrescriptionItemDto[];
+  editedAt: string;
 }
 
 export interface PrescriptionItemDto {
