@@ -4,6 +4,8 @@ export interface AppointmentDto {
   patientName: string;
   doctorProfileId: string;
   doctorName: string;
+  clinicId?: string;
+  clinicName?: string;
   appointmentDate: string;
   startTime: string;
   endTime: string;
@@ -15,6 +17,7 @@ export interface AppointmentDto {
 
 export interface CreateAppointmentRequest {
   doctorProfileId: string;
+  clinicId: string;
   appointmentDate: string;
   startTime: string;
   endTime: string;

@@ -20,14 +20,21 @@ public class SchedulingIntegrityTests
         var patient = new PatientProfile { UserId = "patient-user" };
         var requestedDoctor = ApprovedDoctor("requested-doctor");
         var otherDoctor = ApprovedDoctor("other-doctor");
+        var clinic = ActiveClinic("Requested clinic");
         var date = new DateTime(2026, 8, 10);
 
         context.AddRange(
             patient,
             requestedDoctor,
             otherDoctor,
+            clinic,
             EnabledUser(requestedDoctor.UserId),
             EnabledUser(otherDoctor.UserId));
+        context.ClinicDoctors.Add(new ClinicDoctor
+        {
+            Clinic = clinic,
+            DoctorProfile = requestedDoctor
+        });
         context.DoctorAvailabilities.Add(new DoctorAvailability
         {
             DoctorProfile = requestedDoctor,
@@ -54,6 +61,7 @@ public class SchedulingIntegrityTests
             new CreateAppointmentDto
             {
                 DoctorProfileId = requestedDoctor.Id,
+                ClinicId = clinic.Id,
                 AppointmentDate = date,
                 StartTime = new TimeOnly(10, 0),
                 EndTime = new TimeOnly(10, 30)
@@ -123,6 +131,7 @@ public class SchedulingIntegrityTests
         await using var context = CreateContext();
         var patient = new PatientProfile { UserId = "patient-user" };
         var doctor = ApprovedDoctor("disabled-doctor");
+        var clinic = ActiveClinic("Disabled doctor clinic");
         var disabledUser = new ApplicationUser
         {
             Id = doctor.UserId,
@@ -143,7 +152,12 @@ public class SchedulingIntegrityTests
             EndTime = new TimeOnly(9, 30),
             Status = AppointmentStatus.Pending
         };
-        context.AddRange(patient, doctor, disabledUser, existingAppointment);
+        context.AddRange(patient, doctor, clinic, disabledUser, existingAppointment);
+        context.ClinicDoctors.Add(new ClinicDoctor
+        {
+            Clinic = clinic,
+            DoctorProfile = doctor
+        });
         context.DoctorAvailabilities.Add(new DoctorAvailability
         {
             DoctorProfile = doctor,
@@ -160,6 +174,7 @@ public class SchedulingIntegrityTests
             new CreateAppointmentDto
             {
                 DoctorProfileId = doctor.Id,
+                ClinicId = clinic.Id,
                 AppointmentDate = newDate,
                 StartTime = new TimeOnly(10, 0),
                 EndTime = new TimeOnly(10, 30)
@@ -181,6 +196,12 @@ public class SchedulingIntegrityTests
     {
         UserId = userId,
         ApprovalStatus = DoctorApprovalStatus.Approved
+    };
+
+    private static Clinic ActiveClinic(string name) => new()
+    {
+        Name = name,
+        IsActive = true
     };
 
     private static ApplicationUser EnabledUser(string id) => new()

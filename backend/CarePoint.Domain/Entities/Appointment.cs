@@ -15,6 +15,9 @@ public class Appointment : BaseEntity
     public Guid DoctorProfileId { get; set; }
     public DoctorProfile DoctorProfile { get; set; } = null!;
 
+    public Guid? ClinicId { get; set; }
+    public Clinic? Clinic { get; set; }
+
     public DateTime AppointmentDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }

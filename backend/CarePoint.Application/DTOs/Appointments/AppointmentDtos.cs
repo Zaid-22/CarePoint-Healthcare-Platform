@@ -17,6 +17,8 @@ public class AppointmentDto
     public string PatientName { get; set; } = string.Empty;
     public Guid DoctorProfileId { get; set; }
     public string DoctorName { get; set; } = string.Empty;
+    public Guid? ClinicId { get; set; }
+    public string? ClinicName { get; set; }
     public DateTime AppointmentDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
@@ -29,6 +31,7 @@ public class AppointmentDto
 public class CreateAppointmentDto
 {
     public Guid DoctorProfileId { get; set; }
+    public Guid ClinicId { get; set; }
     public DateTime AppointmentDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }

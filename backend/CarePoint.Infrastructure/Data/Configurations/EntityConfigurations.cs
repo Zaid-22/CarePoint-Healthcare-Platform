@@ -119,6 +119,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.HasKey(a => a.Id);
         builder.HasIndex(a => new { a.DoctorProfileId, a.AppointmentDate, a.StartTime });
         builder.HasIndex(a => new { a.PatientProfileId, a.AppointmentDate });
+        builder.HasIndex(a => a.ClinicId);
         builder.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.Notes).HasMaxLength(2000);
         builder.Property(a => a.CancellationReason).HasMaxLength(500);
@@ -132,6 +133,11 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.HasOne(a => a.DoctorProfile)
             .WithMany(d => d.Appointments)
             .HasForeignKey(a => a.DoctorProfileId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(a => a.Clinic)
+            .WithMany(c => c.Appointments)
+            .HasForeignKey(a => a.ClinicId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

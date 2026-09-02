@@ -142,6 +142,15 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Doctor rejected."));
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id:guid}/clinics")]
+    public async Task<ActionResult<ApiResponse<DoctorDto>>> AssignClinics(
+        Guid id, [FromBody] AssignDoctorClinicsDto dto)
+    {
+        var result = await _doctorService.AssignClinicsAsync(id, dto.ClinicIds);
+        return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Doctor clinic assignments updated."));
+    }
+
     // --- Availability ---
 
     [HttpGet("{doctorId:guid}/availability")]

@@ -118,3 +118,8 @@ public class CreateClinicDto
     public string? PhoneNumber { get; set; }
     public string? City { get; set; }
 }
+
+public class AssignDoctorClinicsDto
+{
+    public List<Guid> ClinicIds { get; set; } = new();
+}

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
-import type { DoctorDto, DoctorAdminSummaryDto, ApiResponse } from '../../types';
+import type { DoctorDto, DoctorAdminSummaryDto, ClinicDto, ApiResponse } from '../../types';
 import doctorPortrait from '../../assets/doctor_portrait.png';
-import { DoctorIcon, CheckIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '../../components/common/Icons';
+import { BuildingIcon, DoctorIcon, CheckIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
 import ApiImage from '../../components/common/ApiImage';
 
@@ -10,6 +10,8 @@ const PAGE_SIZE = 20;
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<DoctorDto[]>([]);
+  const [clinics, setClinics] = useState<ClinicDto[]>([]);
+  const [clinicAssignments, setClinicAssignments] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -30,11 +32,17 @@ export default function AdminDashboard() {
       const status = filter === 'all'
         ? ''
         : `&status=${filter === 'pending' ? 0 : filter === 'approved' ? 1 : 2}`;
-      const [res, summaryRes] = await Promise.all([
+      const [res, summaryRes, clinicRes] = await Promise.all([
         api.get<ApiResponse<DoctorDto[]>>(`/doctors/admin/all?skip=${skip}&take=${PAGE_SIZE}${status}`),
         api.get<ApiResponse<DoctorAdminSummaryDto>>('/doctors/admin/summary'),
+        api.get<ApiResponse<ClinicDto[]>>('/clinics'),
       ]);
-      setDoctors(res.data.data || []);
+      const loadedDoctors = res.data.data || [];
+      setDoctors(loadedDoctors);
+      setClinics(clinicRes.data.data || []);
+      setClinicAssignments(Object.fromEntries(
+        loadedDoctors.map((doctor) => [doctor.id, doctor.clinics.map((clinic) => clinic.id)]),
+      ));
       setTotalCount(res.data.pagination?.totalCount ?? res.data.data?.length ?? 0);
       setSummary(summaryRes.data.data);
     } catch (err: any) {
@@ -74,6 +82,23 @@ export default function AdminDashboard() {
       fetchDoctors();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to reject doctor.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const saveClinicAssignments = async (doctor: DoctorDto) => {
+    setActionSuccess(null);
+    setError(null);
+    setActionLoading(doctor.id);
+    try {
+      await api.put(`/doctors/${doctor.id}/clinics`, {
+        clinicIds: clinicAssignments[doctor.id] ?? [],
+      });
+      setActionSuccess(`Clinic locations updated for Dr. ${doctor.lastName}.`);
+      await fetchDoctors();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to update clinic assignments.');
     } finally {
       setActionLoading(null);
     }
@@ -247,6 +272,44 @@ export default function AdminDashboard() {
                           <span style={{ fontSize: '0.78125rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>No specialties assigned</span>
                         )}
                       </div>
+
+                      <details style={{ marginTop: 12 }}>
+                        <summary style={{ cursor: 'pointer', color: 'var(--accent)', fontSize: '0.8125rem', fontWeight: 600 }}>
+                          <BuildingIcon size={14} /> Manage clinic locations
+                        </summary>
+                        <div style={{ display: 'grid', gap: 8, marginTop: 10, maxWidth: 360 }}>
+                          <label className="form-group">
+                            <span className="form-label">Assigned clinics</span>
+                            <select
+                              className="form-input"
+                              multiple
+                              size={Math.min(Math.max(clinics.length, 2), 5)}
+                              value={clinicAssignments[doc.id] ?? []}
+                              onChange={(event) => setClinicAssignments((current) => ({
+                                ...current,
+                                [doc.id]: Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+                              }))}
+                            >
+                              {clinics.map((clinic) => (
+                                <option key={clinic.id} value={clinic.id}>
+                                  {clinic.name}{clinic.city ? ` — ${clinic.city}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                            Use Ctrl/Cmd to select multiple locations. Future appointments protect assignments from removal.
+                          </span>
+                          <button
+                            className="btn btn-secondary"
+                            type="button"
+                            disabled={actionLoading === doc.id}
+                            onClick={() => saveClinicAssignments(doc)}
+                          >
+                            Save locations
+                          </button>
+                        </div>
+                      </details>
                     </div>
                   </div>
 

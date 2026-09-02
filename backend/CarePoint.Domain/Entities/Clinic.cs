@@ -20,4 +20,5 @@ public class Clinic : BaseEntity, ISoftDeletable
 
     // Navigation properties
     public ICollection<ClinicDoctor> ClinicDoctors { get; set; } = new List<ClinicDoctor>();
+    public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }

@@ -127,6 +127,7 @@ export default function DoctorAppointments() {
 
                   <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: 8 }}>
                     📅 {new Date(app.appointmentDate).toLocaleDateString()} • ⏰ {app.startTime} - {app.endTime}
+                    {app.clinicName && ` • 🏥 ${app.clinicName}`}
                   </div>
 
                   {app.notes && (

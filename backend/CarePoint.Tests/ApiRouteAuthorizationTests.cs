@@ -52,6 +52,13 @@ public class ApiRouteAuthorizationTests
     }
 
     [Fact]
+    public void DoctorClinicAssignments_AreExposedOnlyToAdmins()
+    {
+        AssertAuthorizedRoute<DoctorsController, HttpPutAttribute>(
+            nameof(DoctorsController.AssignClinics), "{id:guid}/clinics", "Admin");
+    }
+
+    [Fact]
     public void AdminUserManagement_IsProtectedAtTheControllerBoundary()
     {
         var controllerType = typeof(AdminUsersController);

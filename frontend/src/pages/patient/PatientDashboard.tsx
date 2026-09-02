@@ -146,7 +146,7 @@ export default function PatientDashboard() {
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <ClockIcon size={14} color="var(--accent)" />
-                        {app.startTime} - {app.endTime}
+                  {app.startTime} - {app.endTime}{app.clinicName ? ` · ${app.clinicName}` : ''}
                       </span>
                     </div>
                   </div>

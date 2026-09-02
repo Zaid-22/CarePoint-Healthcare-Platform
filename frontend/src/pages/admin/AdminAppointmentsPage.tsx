@@ -133,6 +133,7 @@ export default function AdminAppointmentsPage() {
                     <div className="admin-primary-cell">
                       <strong>{appointment.patientName}</strong>
                       <span>with Dr. {appointment.doctorName}</span>
+                      {appointment.clinicName && <span>{appointment.clinicName}</span>}
                     </div>
                     <span className={`badge ${status.badge}`}>{status.label}</span>
                   </div>

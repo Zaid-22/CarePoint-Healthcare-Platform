@@ -429,6 +429,59 @@ public class DoctorService : IDoctorService
         return await GetByIdInternalAsync(id, requireApproved: false);
     }
 
+    public async Task<DoctorDto> AssignClinicsAsync(
+        Guid id, IReadOnlyCollection<Guid> clinicIds)
+    {
+        var doctor = await _context.DoctorProfiles
+            .Include(candidate => candidate.ClinicDoctors)
+            .FirstOrDefaultAsync(candidate => candidate.Id == id)
+            ?? throw new NotFoundException("Doctor", id);
+        var requestedIds = (clinicIds ?? Array.Empty<Guid>()).Distinct().ToList();
+        var validClinicIds = await _context.Clinics.AsNoTracking()
+            .Where(clinic => clinic.IsActive && requestedIds.Contains(clinic.Id))
+            .Select(clinic => clinic.Id)
+            .ToListAsync();
+        if (validClinicIds.Count != requestedIds.Count)
+            throw new BadRequestException("One or more selected clinics are invalid or inactive.");
+
+        var existingIds = doctor.ClinicDoctors.Select(assignment => assignment.ClinicId).ToHashSet();
+        var assignmentsToRemove = doctor.ClinicDoctors
+            .Where(assignment => !requestedIds.Contains(assignment.ClinicId))
+            .ToList();
+        var removedIds = assignmentsToRemove
+            .Select(assignment => assignment.ClinicId)
+            .ToList();
+        if (removedIds.Count > 0)
+        {
+            var localNow = _clinicClock.LocalNow;
+            var hasFutureAppointments = await _context.Appointments.AsNoTracking()
+                .AnyAsync(appointment => appointment.DoctorProfileId == id &&
+                    appointment.ClinicId.HasValue && removedIds.Contains(appointment.ClinicId.Value) &&
+                    appointment.Status != AppointmentStatus.Cancelled &&
+                    appointment.Status != AppointmentStatus.Rejected &&
+                    appointment.Status != AppointmentStatus.Completed &&
+                    appointment.Status != AppointmentStatus.NoShow &&
+                    (appointment.AppointmentDate.Date > localNow.Date ||
+                     (appointment.AppointmentDate.Date == localNow.Date &&
+                      appointment.EndTime > TimeOnly.FromDateTime(localNow))));
+            if (hasFutureAppointments)
+                throw new ConflictException(
+                    "A clinic assignment with future appointments cannot be removed.");
+        }
+
+        _context.ClinicDoctors.RemoveRange(assignmentsToRemove);
+        _context.ClinicDoctors.AddRange(requestedIds
+            .Where(clinicId => !existingIds.Contains(clinicId))
+            .Select(clinicId => new ClinicDoctor
+        {
+            DoctorProfileId = id,
+            ClinicId = clinicId
+        }));
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+        return await GetByIdInternalAsync(id, requireApproved: false);
+    }
+
     public async Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(
         Guid doctorId, string? requesterUserId = null, string? requesterRole = null)
     {
@@ -763,7 +816,9 @@ public class DoctorService : IDoctorService
             Description = ds.Specialty.Description,
             IsActive = ds.Specialty.IsActive
         }).ToList(),
-        Clinics = doctor.ClinicDoctors.Select(cd => new ClinicDto
+        Clinics = doctor.ClinicDoctors
+            .Where(cd => cd.Clinic != null && cd.Clinic.IsActive)
+            .Select(cd => new ClinicDto
         {
             Id = cd.Clinic.Id,
             Name = cd.Clinic.Name,
@@ -789,7 +844,9 @@ public class DoctorService : IDoctorService
             Description = ds.Specialty.Description,
             IsActive = ds.Specialty.IsActive
         }).ToList(),
-        Clinics = doctor.ClinicDoctors.Select(cd => new ClinicDto
+        Clinics = doctor.ClinicDoctors
+            .Where(cd => cd.Clinic != null && cd.Clinic.IsActive)
+            .Select(cd => new ClinicDto
         {
             Id = cd.Clinic.Id,
             Name = cd.Clinic.Name,

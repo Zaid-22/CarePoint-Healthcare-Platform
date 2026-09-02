@@ -13,6 +13,7 @@ export default function FindDoctors() {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState<PublicDoctorDto | null>(null);
+  const [selectedClinicId, setSelectedClinicId] = useState('');
   const [slots, setSlots] = useState<AvailableSlotDto[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getClinicDateString());
   const [bookingSlot, setBookingSlot] = useState<AvailableSlotDto | null>(null);
@@ -61,6 +62,7 @@ export default function FindDoctors() {
 
   const handleSelectDoctor = async (doc: PublicDoctorDto) => {
     setSelectedDoctor(doc);
+    setSelectedClinicId(doc.clinics.length === 1 ? doc.clinics[0].id : '');
     setBookingSlot(null);
     setBookingSuccess(false);
     setBookingError(null);
@@ -85,11 +87,12 @@ export default function FindDoctors() {
   };
 
   const handleBook = async () => {
-    if (!selectedDoctor || !bookingSlot) return;
+    if (!selectedDoctor || !selectedClinicId || !bookingSlot) return;
     setBookingError(null);
     try {
       await api.post('/appointments', {
         doctorProfileId: selectedDoctor.id,
+        clinicId: selectedClinicId,
         appointmentDate: selectedDate,
         startTime: bookingSlot.startTime,
         endTime: bookingSlot.endTime,
@@ -222,14 +225,20 @@ export default function FindDoctors() {
                   <div style={{ fontSize: '0.875rem', fontWeight: 600, marginTop: 8, color: 'var(--color-teal-800)' }}>
                     Fee: {doc.consultationFee} JOD
                   </div>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                    {doc.clinics.length > 0
+                      ? doc.clinics.map((clinic) => `${clinic.name}${clinic.city ? ` · ${clinic.city}` : ''}`).join(' • ')
+                      : 'No active clinic location assigned'}
+                  </div>
                 </div>
               </div>
 
                 <button
                   className="btn btn-primary"
                   onClick={() => handleSelectDoctor(doc)}
+                  disabled={doc.clinics.length === 0}
                 >
-                  View Schedule
+                  {doc.clinics.length === 0 ? 'Location unavailable' : 'View Schedule'}
                 </button>
               </div>
             ))
@@ -238,7 +247,7 @@ export default function FindDoctors() {
             skip={skip}
             take={PAGE_SIZE}
             totalCount={totalCount}
-            onPageChange={(nextSkip) => { setSkip(nextSkip); setSelectedDoctor(null); }}
+            onPageChange={(nextSkip) => { setSkip(nextSkip); setSelectedDoctor(null); setSelectedClinicId(''); }}
           />
         </div>
 
@@ -249,7 +258,7 @@ export default function FindDoctors() {
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700 }}>
                 Schedule with Dr. {selectedDoctor.lastName}
               </h2>
-              <button className="btn btn-ghost" onClick={() => setSelectedDoctor(null)}>✕</button>
+              <button className="btn btn-ghost" aria-label="Close booking panel" onClick={() => { setSelectedDoctor(null); setSelectedClinicId(''); }}>✕</button>
             </div>
 
             {bookingSuccess && (
@@ -262,6 +271,24 @@ export default function FindDoctors() {
                 {bookingError}
               </div>
             )}
+
+            <div className="form-group" style={{ marginBottom: 20 }}>
+              <label className="form-label" htmlFor="booking-clinic">Clinic location</label>
+              <select
+                id="booking-clinic"
+                className="form-input"
+                value={selectedClinicId}
+                onChange={(event) => { setSelectedClinicId(event.target.value); setBookingSlot(null); }}
+                required
+              >
+                <option value="">Choose the visit location</option>
+                {selectedDoctor.clinics.map((clinic) => (
+                  <option key={clinic.id} value={clinic.id}>
+                    {clinic.name}{clinic.city ? ` — ${clinic.city}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="form-group" style={{ marginBottom: 20 }}>
               <label className="form-label">Select Date</label>
@@ -299,7 +326,7 @@ export default function FindDoctors() {
               )}
             </div>
 
-            {bookingSlot && (
+            {bookingSlot && selectedClinicId && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div className="form-group">
                   <label className="form-label">Reason for visit (optional)</label>

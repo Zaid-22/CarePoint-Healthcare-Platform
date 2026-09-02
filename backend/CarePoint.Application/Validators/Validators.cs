@@ -78,9 +78,21 @@ public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentDto
     public CreateAppointmentValidator()
     {
         RuleFor(x => x.DoctorProfileId).NotEmpty();
+        RuleFor(x => x.ClinicId).NotEmpty();
         RuleFor(x => x.AppointmentDate).NotEmpty();
         RuleFor(x => x.StartTime).LessThan(x => x.EndTime).WithMessage("Start time must be before end time.");
         RuleFor(x => x.Notes).MaximumLength(2000);
+    }
+}
+
+public class AssignDoctorClinicsValidator : AbstractValidator<AssignDoctorClinicsDto>
+{
+    public AssignDoctorClinicsValidator()
+    {
+        RuleFor(x => x.ClinicIds).NotNull();
+        RuleFor(x => x.ClinicIds)
+            .Must(ids => ids == null || ids.Count == ids.Distinct().Count())
+            .WithMessage("Clinic assignments cannot contain duplicates.");
     }
 }
 

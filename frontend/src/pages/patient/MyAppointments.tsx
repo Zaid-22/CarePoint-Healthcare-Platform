@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import type { AppointmentDto, ApiResponse, AvailableSlotDto } from '../../types';
-import { CalendarIcon, ClockIcon } from '../../components/common/Icons';
+import { BuildingIcon, CalendarIcon, ClockIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
 import { getClinicDateString } from '../../utils/clinicTime';
 
@@ -194,6 +194,12 @@ export default function MyAppointments() {
                         <ClockIcon size={15} color="var(--accent)" />
                         {appointment.startTime} - {appointment.endTime}
                       </span>
+                      {appointment.clinicName && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <BuildingIcon size={15} color="var(--accent)" />
+                          {appointment.clinicName}
+                        </span>
+                      )}
                     </div>
 
                     {appointment.notes && (

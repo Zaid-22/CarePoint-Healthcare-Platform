@@ -43,6 +43,7 @@ public interface IDoctorService
     Task DeleteAsync(Guid id);
     Task<DoctorDto> ApproveAsync(Guid id);
     Task<DoctorDto> RejectAsync(Guid id);
+    Task<DoctorDto> AssignClinicsAsync(Guid id, IReadOnlyCollection<Guid> clinicIds);
     Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(
         Guid doctorId, string? requesterUserId = null, string? requesterRole = null);
     Task<DoctorAvailabilityDto> AddAvailabilityAsync(Guid doctorId, string userId, CreateAvailabilityDto dto);

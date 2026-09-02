@@ -35,6 +35,9 @@ namespace CarePoint.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<Guid?>("ClinicId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -69,6 +72,8 @@ namespace CarePoint.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("PatientProfileId", "AppointmentDate");
 
@@ -1001,6 +1006,11 @@ namespace CarePoint.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("CarePoint.Domain.Entities.Appointment", b =>
                 {
+                    b.HasOne("CarePoint.Domain.Entities.Clinic", "Clinic")
+                        .WithMany("Appointments")
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CarePoint.Domain.Entities.DoctorProfile", "DoctorProfile")
                         .WithMany("Appointments")
                         .HasForeignKey("DoctorProfileId")
@@ -1012,6 +1022,8 @@ namespace CarePoint.Infrastructure.Data.Migrations
                         .HasForeignKey("PatientProfileId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Clinic");
 
                     b.Navigation("DoctorProfile");
 
@@ -1265,6 +1277,8 @@ namespace CarePoint.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("CarePoint.Domain.Entities.Clinic", b =>
                 {
+                    b.Navigation("Appointments");
+
                     b.Navigation("ClinicDoctors");
                 });
 

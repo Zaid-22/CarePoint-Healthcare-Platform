@@ -34,6 +34,7 @@ public class AppointmentService : IAppointmentService
         var appointment = await _context.Appointments
             .Include(a => a.PatientProfile)
             .Include(a => a.DoctorProfile)
+            .Include(a => a.Clinic)
             .FirstOrDefaultAsync(a => a.Id == id)
             ?? throw new NotFoundException("Appointment", id);
 
@@ -66,6 +67,8 @@ public class AppointmentService : IAppointmentService
                 DoctorProfileId = a.DoctorProfileId,
                 DoctorName = _context.Users.Where(u => u.Id == a.DoctorProfile.UserId)
                     .Select(u => u.FirstName + " " + u.LastName).FirstOrDefault() ?? string.Empty,
+                ClinicId = a.ClinicId,
+                ClinicName = a.Clinic != null ? a.Clinic.Name : null,
                 AppointmentDate = a.AppointmentDate,
                 StartTime = a.StartTime,
                 EndTime = a.EndTime,
@@ -125,6 +128,8 @@ public class AppointmentService : IAppointmentService
         if (doctor.ApprovalStatus != DoctorApprovalStatus.Approved)
             throw new BadRequestException("This doctor is not yet approved for booking.");
 
+        await EnsureClinicCanHostAppointmentAsync(dto.ClinicId, dto.DoctorProfileId);
+
         await EnsureSlotIsAvailableAsync(dto.DoctorProfileId, dto.AppointmentDate, dto.StartTime, dto.EndTime);
         await EnsurePatientIsAvailableAsync(
             patient.Id, dto.AppointmentDate, dto.StartTime, dto.EndTime);
@@ -133,6 +138,7 @@ public class AppointmentService : IAppointmentService
         {
             PatientProfileId = patient.Id,
             DoctorProfileId = dto.DoctorProfileId,
+            ClinicId = dto.ClinicId,
             AppointmentDate = dto.AppointmentDate,
             StartTime = dto.StartTime,
             EndTime = dto.EndTime,
@@ -157,6 +163,7 @@ public class AppointmentService : IAppointmentService
         var appointment = await _context.Appointments
             .Include(a => a.PatientProfile)
             .Include(a => a.DoctorProfile)
+            .Include(a => a.Clinic)
             .FirstOrDefaultAsync(a => a.Id == id)
             ?? throw new NotFoundException("Appointment", id);
 
@@ -211,6 +218,7 @@ public class AppointmentService : IAppointmentService
         await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var appointment = await _context.Appointments
             .Include(a => a.DoctorProfile)
+            .Include(a => a.Clinic)
             .FirstOrDefaultAsync(a => a.Id == id)
             ?? throw new NotFoundException("Appointment", id);
 
@@ -220,6 +228,9 @@ public class AppointmentService : IAppointmentService
 
         if (!AppointmentStatusTransitions.CanPatientReschedule(appointment.Status))
             throw new BadRequestException("This appointment can no longer be rescheduled.");
+
+        if (appointment.ClinicId.HasValue)
+            await EnsureClinicCanHostAppointmentAsync(appointment.ClinicId.Value, appointment.DoctorProfileId);
 
         await EnsureSlotIsAvailableAsync(
             appointment.DoctorProfileId,
@@ -256,6 +267,7 @@ public class AppointmentService : IAppointmentService
         var appointment = await _context.Appointments
             .Include(a => a.PatientProfile)
             .Include(a => a.DoctorProfile)
+            .Include(a => a.Clinic)
             .FirstOrDefaultAsync(a => a.Id == id)
             ?? throw new NotFoundException("Appointment", id);
 
@@ -355,6 +367,17 @@ public class AppointmentService : IAppointmentService
                 "You already have an appointment during this time. Please select a different time slot.");
     }
 
+    private async Task EnsureClinicCanHostAppointmentAsync(Guid clinicId, Guid doctorProfileId)
+    {
+        var isAssigned = await _context.ClinicDoctors.AsNoTracking()
+            .AnyAsync(assignment => assignment.ClinicId == clinicId &&
+                assignment.DoctorProfileId == doctorProfileId &&
+                assignment.Clinic.IsActive);
+        if (!isAssigned)
+            throw new BadRequestException(
+                "Select an active clinic where this doctor is currently assigned.");
+    }
+
     private async Task<IQueryable<Appointment>> GetAccessibleQueryAsync(string userId, string role)
     {
         IQueryable<Appointment> query = _context.Appointments.AsNoTracking();
@@ -434,6 +457,8 @@ public class AppointmentService : IAppointmentService
             PatientName = patientUser != null ? $"{patientUser.FirstName} {patientUser.LastName}" : "",
             DoctorProfileId = a.DoctorProfileId,
             DoctorName = doctorUser != null ? $"{doctorUser.FirstName} {doctorUser.LastName}" : "",
+            ClinicId = a.ClinicId,
+            ClinicName = a.Clinic?.Name,
             AppointmentDate = a.AppointmentDate,
             StartTime = a.StartTime,
             EndTime = a.EndTime,

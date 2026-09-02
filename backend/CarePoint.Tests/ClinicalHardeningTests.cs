@@ -96,6 +96,7 @@ public class ClinicalHardeningTests
         var create = new CreateAppointmentValidator().Validate(new CreateAppointmentDto
         {
             DoctorProfileId = Guid.NewGuid(),
+            ClinicId = Guid.NewGuid(),
             AppointmentDate = DateTime.UtcNow.AddDays(1),
             StartTime = new TimeOnly(9, 0),
             EndTime = new TimeOnly(9, 30),

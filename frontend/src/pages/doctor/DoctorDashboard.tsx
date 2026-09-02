@@ -108,7 +108,7 @@ export default function DoctorDashboard() {
                   <div style={{ fontWeight: 600 }}>{app.patientName}</div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
                     <ClockIcon size={14} color="var(--accent)" />
-                    {app.startTime} - {app.endTime}
+                    {app.startTime} - {app.endTime}{app.clinicName ? ` · ${app.clinicName}` : ''}
                   </div>
                 </div>
                 <span className="badge badge-teal">Scheduled</span>
