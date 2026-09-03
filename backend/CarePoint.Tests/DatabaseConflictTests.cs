@@ -15,7 +15,7 @@ namespace CarePoint.Tests;
 public class DatabaseConflictTests
 {
     [Fact]
-    public async Task DatabaseUpdateFailureReturnsConflictWithoutLeakingDatabaseDetails()
+    public async Task UnknownDatabaseUpdateFailureReturnsServerErrorWithoutLeakingDatabaseDetails()
     {
         const string databaseDetail = "Violation of UNIQUE KEY constraint IX_Specialties_Name";
         var middleware = new GlobalExceptionMiddleware(
@@ -28,8 +28,28 @@ public class DatabaseConflictTests
 
         context.Response.Body.Position = 0;
         using var response = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal((int)HttpStatusCode.InternalServerError, context.Response.StatusCode);
+        Assert.Equal("An unexpected error occurred.",
+            response.RootElement.GetProperty("message").GetString());
+        Assert.DoesNotContain(databaseDetail, response.RootElement.ToString());
+    }
+
+    [Fact]
+    public async Task ConcurrencyFailureStillReturnsConflictWithoutLeakingDatabaseDetails()
+    {
+        const string databaseDetail = "The row was updated by another transaction.";
+        var middleware = new GlobalExceptionMiddleware(
+            _ => throw new DbUpdateConcurrencyException(databaseDetail),
+            NullLogger<GlobalExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(context.Response.Body);
         Assert.Equal((int)HttpStatusCode.Conflict, context.Response.StatusCode);
-        Assert.Equal("This request conflicts with data that already exists or changed.",
+        Assert.Equal("This record was changed by another request. Reload it and try again.",
             response.RootElement.GetProperty("message").GetString());
         Assert.DoesNotContain(databaseDetail, response.RootElement.ToString());
     }

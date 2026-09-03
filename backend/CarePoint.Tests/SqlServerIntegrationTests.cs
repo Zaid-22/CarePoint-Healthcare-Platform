@@ -2,6 +2,7 @@ using CarePoint.Application.Configuration;
 using CarePoint.Application.DTOs.Auth;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
+using CarePoint.API.Middleware;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
 using CarePoint.Domain.Exceptions;
@@ -11,6 +12,10 @@ using CarePoint.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Net;
+using System.Text.Json;
 
 namespace CarePoint.Tests;
 
@@ -19,6 +24,33 @@ public class SqlServerIntegrationTests
     private static string ConnectionString =>
         Environment.GetEnvironmentVariable("CAREPOINT_TEST_SQL")
         ?? throw new InvalidOperationException("CAREPOINT_TEST_SQL is required for SQL Server integration tests.");
+
+    [SqlServerFact]
+    public async Task UniqueConstraintViolationReturnsConflictThroughMiddleware()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlServer(ConnectionString)
+            .Options;
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.MigrateAsync();
+        var duplicateName = $"Duplicate specialty {Guid.NewGuid():N}";
+        context.Specialties.Add(new Specialty { Name = duplicateName });
+        await context.SaveChangesAsync();
+        context.Specialties.Add(new Specialty { Name = duplicateName });
+        var middleware = new GlobalExceptionMiddleware(
+            _ => context.SaveChangesAsync(),
+            NullLogger<GlobalExceptionMiddleware>.Instance);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(httpContext);
+
+        httpContext.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(httpContext.Response.Body);
+        Assert.Equal((int)HttpStatusCode.Conflict, httpContext.Response.StatusCode);
+        Assert.Equal("This request conflicts with data that already exists or changed.",
+            response.RootElement.GetProperty("message").GetString());
+    }
 
     [SqlServerFact]
     public async Task MedicalRecordRowVersionRejectsConcurrentSqlServerUpdate()
