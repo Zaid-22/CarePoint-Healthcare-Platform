@@ -84,6 +84,33 @@ public class ClinicBookingTests
         Assert.Empty(context.Appointments);
     }
 
+    [Fact]
+    public async Task ClinicWithFutureAppointmentsCannotBeDeactivated()
+    {
+        await using var context = CreateContext();
+        var clinic = new Clinic { Name = "Active clinic", IsActive = true };
+        var doctor = new DoctorProfile { UserId = "clinic-doctor" };
+        var patient = new PatientProfile { UserId = "clinic-patient" };
+        context.AddRange(clinic, doctor, patient, new Appointment
+        {
+            Clinic = clinic,
+            DoctorProfile = doctor,
+            PatientProfile = patient,
+            AppointmentDate = new DateTime(2026, 8, 10),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(10, 30),
+            Status = AppointmentStatus.Accepted
+        });
+        await context.SaveChangesAsync();
+        var service = new ClinicService(context, new FixedClinicClock());
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.DeleteAsync(clinic.Id));
+
+        Assert.Contains("future appointments", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(clinic.IsActive);
+    }
+
     private static ApplicationUser EnabledUser(string id) => new()
     {
         Id = id,

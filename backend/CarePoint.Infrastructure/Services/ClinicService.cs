@@ -4,14 +4,21 @@ using CarePoint.Application.Interfaces;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
+using CarePoint.Domain.Enums;
+using System.Data;
 
 namespace CarePoint.Infrastructure.Services;
 
 public class ClinicService : IClinicService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IClinicClock _clinicClock;
 
-    public ClinicService(ApplicationDbContext context) => _context = context;
+    public ClinicService(ApplicationDbContext context, IClinicClock clinicClock)
+    {
+        _context = context;
+        _clinicClock = clinicClock;
+    }
 
     public async Task<IReadOnlyList<ClinicDto>> GetAllAsync()
     {
@@ -78,9 +85,32 @@ public class ClinicService : IClinicService
 
     public async Task DeleteAsync(Guid id)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable);
         var clinic = await _context.Clinics.FindAsync(id)
             ?? throw new NotFoundException("Clinic", id);
+        if (!clinic.IsActive)
+        {
+            await transaction.CommitAsync();
+            return;
+        }
+
+        var localNow = _clinicClock.LocalNow;
+        var hasFutureAppointments = await _context.Appointments.AsNoTracking()
+            .AnyAsync(appointment => appointment.ClinicId == id &&
+                appointment.Status != AppointmentStatus.Cancelled &&
+                appointment.Status != AppointmentStatus.Rejected &&
+                appointment.Status != AppointmentStatus.Completed &&
+                appointment.Status != AppointmentStatus.NoShow &&
+                (appointment.AppointmentDate.Date > localNow.Date ||
+                 (appointment.AppointmentDate.Date == localNow.Date &&
+                  appointment.EndTime > TimeOnly.FromDateTime(localNow))));
+        if (hasFutureAppointments)
+            throw new ConflictException(
+                "A clinic with future appointments cannot be deactivated.");
+
         clinic.IsActive = false;
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 }
