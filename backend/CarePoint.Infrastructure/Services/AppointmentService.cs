@@ -125,7 +125,7 @@ public class AppointmentService : IAppointmentService
         var doctor = await _context.DoctorProfiles.FindAsync(dto.DoctorProfileId)
             ?? throw new NotFoundException("Doctor profile not found.");
 
-        if (doctor.ApprovalStatus != DoctorApprovalStatus.Approved)
+        if (!HasCurrentBookingCredentials(doctor, _clinicClock.LocalNow.Date))
             throw new BadRequestException("This doctor is not yet approved for booking.");
 
         await EnsureClinicCanHostAppointmentAsync(dto.ClinicId, dto.DoctorProfileId);
@@ -314,9 +314,14 @@ public class AppointmentService : IAppointmentService
         TimeOnly endTime,
         Guid? excludedAppointmentId = null)
     {
+        var localDate = _clinicClock.LocalNow.Date;
         var canAcceptBookings = await _context.DoctorProfiles.AsNoTracking()
             .AnyAsync(doctor => doctor.Id == doctorProfileId &&
                 doctor.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                doctor.LicenseNumber != null && doctor.LicenseNumber != string.Empty &&
+                doctor.LicensingAuthority != null && doctor.LicensingAuthority != string.Empty &&
+                doctor.LicenseExpiryDate.HasValue && doctor.LicenseExpiryDate.Value > localDate &&
+                doctor.CredentialsReviewedAt.HasValue &&
                 _context.Users.Any(user => user.Id == doctor.UserId &&
                     user.LockoutEnd != DateTimeOffset.MaxValue));
         if (!canAcceptBookings)
@@ -377,6 +382,13 @@ public class AppointmentService : IAppointmentService
             throw new BadRequestException(
                 "Select an active clinic where this doctor is currently assigned.");
     }
+
+    private static bool HasCurrentBookingCredentials(DoctorProfile doctor, DateTime localDate) =>
+        doctor.ApprovalStatus == DoctorApprovalStatus.Approved &&
+        !string.IsNullOrWhiteSpace(doctor.LicenseNumber) &&
+        !string.IsNullOrWhiteSpace(doctor.LicensingAuthority) &&
+        doctor.LicenseExpiryDate?.Date > localDate.Date &&
+        doctor.CredentialsReviewedAt.HasValue;
 
     private async Task<IQueryable<Appointment>> GetAccessibleQueryAsync(string userId, string role)
     {

@@ -228,6 +228,10 @@ public class DoctorValidatorTests
             Id = doctorId,
             UserId = "doctor-user",
             ApprovalStatus = approvalStatus,
+            LicenseNumber = "JMC-TEST-100",
+            LicensingAuthority = "Jordan Medical Council",
+            LicenseExpiryDate = new DateTime(2027, 8, 1),
+            CredentialsReviewedAt = new DateTime(2026, 7, 1),
             ArchivedProfilePictureValue = "data:image/png;base64,AQID",
             ProfilePictureUrl = $"/api/doctors/{doctorId}/avatar?v=legacy"
         };

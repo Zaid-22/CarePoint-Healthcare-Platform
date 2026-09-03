@@ -195,7 +195,11 @@ public class SchedulingIntegrityTests
     private static DoctorProfile ApprovedDoctor(string userId) => new()
     {
         UserId = userId,
-        ApprovalStatus = DoctorApprovalStatus.Approved
+        ApprovalStatus = DoctorApprovalStatus.Approved,
+        LicenseNumber = $"JMC-{userId}",
+        LicensingAuthority = "Jordan Medical Council",
+        LicenseExpiryDate = new DateTime(2027, 8, 1),
+        CredentialsReviewedAt = new DateTime(2026, 7, 1)
     };
 
     private static Clinic ActiveClinic(string name) => new()

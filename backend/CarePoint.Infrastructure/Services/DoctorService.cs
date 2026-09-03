@@ -37,12 +37,17 @@ public class DoctorService : IDoctorService
 
     public async Task<PublicDoctorDto> GetByIdAsync(Guid id)
     {
+        var localDate = _clinicClock.LocalNow.Date;
         var doctor = await _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id &&
                 d.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                d.LicenseNumber != null && d.LicenseNumber != string.Empty &&
+                d.LicensingAuthority != null && d.LicensingAuthority != string.Empty &&
+                d.LicenseExpiryDate.HasValue && d.LicenseExpiryDate.Value > localDate &&
+                d.CredentialsReviewedAt.HasValue &&
                 _context.Users.Any(user => user.Id == d.UserId &&
                     user.LockoutEnd != DateTimeOffset.MaxValue))
             ?? throw new NotFoundException("Doctor", id);
@@ -70,10 +75,15 @@ public class DoctorService : IDoctorService
         string? specialtyFilter = null, string? nameFilter = null, int skip = 0, int take = 50)
     {
         (skip, take) = Pagination.Normalize(skip, take);
+        var localDate = _clinicClock.LocalNow.Date;
         var query = _context.DoctorProfiles
             .Include(d => d.DoctorSpecialties).ThenInclude(ds => ds.Specialty)
             .Include(d => d.ClinicDoctors).ThenInclude(cd => cd.Clinic)
             .Where(d => d.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                d.LicenseNumber != null && d.LicenseNumber != string.Empty &&
+                d.LicensingAuthority != null && d.LicensingAuthority != string.Empty &&
+                d.LicenseExpiryDate.HasValue && d.LicenseExpiryDate.Value > localDate &&
+                d.CredentialsReviewedAt.HasValue &&
                 _context.Users.Any(user => user.Id == d.UserId &&
                     user.LockoutEnd != DateTimeOffset.MaxValue))
             .AsNoTracking()
@@ -652,9 +662,14 @@ public class DoctorService : IDoctorService
 
     public async Task<IReadOnlyList<AvailableSlotDto>> GetAvailableSlotsAsync(Guid doctorId, DateTime date)
     {
+        var localDate = _clinicClock.LocalNow.Date;
         var isBookable = await _context.DoctorProfiles.AsNoTracking()
             .AnyAsync(d => d.Id == doctorId &&
                 d.ApprovalStatus == DoctorApprovalStatus.Approved &&
+                d.LicenseNumber != null && d.LicenseNumber != string.Empty &&
+                d.LicensingAuthority != null && d.LicensingAuthority != string.Empty &&
+                d.LicenseExpiryDate.HasValue && d.LicenseExpiryDate.Value > localDate &&
+                d.CredentialsReviewedAt.HasValue &&
                 _context.Users.Any(user => user.Id == d.UserId &&
                     user.LockoutEnd != DateTimeOffset.MaxValue));
         if (!isBookable)

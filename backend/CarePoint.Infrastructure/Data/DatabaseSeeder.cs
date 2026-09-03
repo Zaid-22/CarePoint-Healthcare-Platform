@@ -64,7 +64,8 @@ public static class DatabaseSeeder
         }
 
         // 5. Seed Sample Doctors with Specialties and Availability
-        await SeedDoctorsAsync(userManager, dbContext, seededSpecialties, seededClinics, demoPassword);
+        await SeedDoctorsAsync(
+            userManager, dbContext, seededSpecialties, seededClinics, demoPassword, adminUser.Id);
 
         // 6. Seed Sample Patient
         await SeedPatientAsync(userManager, dbContext, demoPassword);
@@ -165,7 +166,8 @@ public static class DatabaseSeeder
         ApplicationDbContext context,
         Dictionary<string, Specialty> specialtyMap,
         List<Clinic> clinics,
-        string demoPassword)
+        string demoPassword,
+        string reviewerUserId)
     {
         var sampleDoctors = new[]
         {
@@ -179,6 +181,7 @@ public static class DatabaseSeeder
                 Phone = "+962 7 9100 1111",
                 Gender = "Female",
                 Picture = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80",
+                LicenseNumber = "DEMO-JMC-10001",
                 Specialties = new[] { "Cardiology", "General Medicine" },
                 ClinicIdx = 0
             },
@@ -192,6 +195,7 @@ public static class DatabaseSeeder
                 Phone = "+962 7 9200 2222",
                 Gender = "Male",
                 Picture = "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80",
+                LicenseNumber = "DEMO-JMC-10002",
                 Specialties = new[] { "Dermatology" },
                 ClinicIdx = 1
             },
@@ -205,6 +209,7 @@ public static class DatabaseSeeder
                 Phone = "+962 7 9300 3333",
                 Gender = "Female",
                 Picture = "https://images.unsplash.com/photo-1594824813566-88855ce78905?auto=format&fit=crop&w=300&q=80",
+                LicenseNumber = "DEMO-JMC-10003",
                 Specialties = new[] { "Pediatrics", "General Medicine" },
                 ClinicIdx = 0
             },
@@ -218,6 +223,7 @@ public static class DatabaseSeeder
                 Phone = "+962 7 9400 4444",
                 Gender = "Male",
                 Picture = "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=300&q=80",
+                LicenseNumber = "DEMO-JMC-10004",
                 Specialties = new[] { "Orthopedics" },
                 ClinicIdx = 2
             },
@@ -231,6 +237,7 @@ public static class DatabaseSeeder
                 Phone = "+962 7 9500 5555",
                 Gender = "Female",
                 Picture = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80",
+                LicenseNumber = "DEMO-JMC-10005",
                 Specialties = new[] { "Neurology" },
                 ClinicIdx = 1
             }
@@ -238,6 +245,8 @@ public static class DatabaseSeeder
 
         foreach (var docInfo in sampleDoctors)
         {
+            var credentialExpiry = DateTime.UtcNow.Date.AddYears(5);
+            var credentialsReviewedAt = DateTime.UtcNow;
             var user = await userManager.FindByEmailAsync(docInfo.Email);
             if (user == null)
             {
@@ -271,6 +280,12 @@ public static class DatabaseSeeder
                     PhoneNumber = docInfo.Phone,
                     Gender = docInfo.Gender,
                     ProfilePictureUrl = docInfo.Picture,
+                    LicenseNumber = docInfo.LicenseNumber,
+                    LicensingAuthority = "CarePoint Demo Medical Council",
+                    LicenseExpiryDate = credentialExpiry,
+                    CredentialsReviewedAt = credentialsReviewedAt,
+                    CredentialsReviewedByUserId = reviewerUserId,
+                    CredentialReviewNotes = "Verified demo practitioner credentials.",
                     ApprovalStatus = DoctorApprovalStatus.Approved
                 };
 
@@ -314,10 +329,40 @@ public static class DatabaseSeeder
                     });
                 }
 
+                context.DoctorCredentialReviews.Add(CreateDemoCredentialReview(
+                    profile, reviewerUserId));
+                await context.SaveChangesAsync();
+            }
+            else if (string.IsNullOrWhiteSpace(profile.LicenseNumber) ||
+                     string.IsNullOrWhiteSpace(profile.LicensingAuthority) ||
+                     !profile.LicenseExpiryDate.HasValue ||
+                     !profile.CredentialsReviewedAt.HasValue)
+            {
+                profile.LicenseNumber = docInfo.LicenseNumber;
+                profile.LicensingAuthority = "CarePoint Demo Medical Council";
+                profile.LicenseExpiryDate = credentialExpiry;
+                profile.CredentialsReviewedAt = credentialsReviewedAt;
+                profile.CredentialsReviewedByUserId = reviewerUserId;
+                profile.CredentialReviewNotes = "Verified demo practitioner credentials.";
+                profile.ApprovalStatus = DoctorApprovalStatus.Approved;
+                context.DoctorCredentialReviews.Add(CreateDemoCredentialReview(
+                    profile, reviewerUserId));
                 await context.SaveChangesAsync();
             }
         }
     }
+
+    private static DoctorCredentialReview CreateDemoCredentialReview(
+        DoctorProfile profile, string reviewerUserId) => new()
+    {
+        DoctorProfileId = profile.Id,
+        ReviewedByUserId = reviewerUserId,
+        Decision = DoctorApprovalStatus.Approved,
+        LicenseNumber = profile.LicenseNumber,
+        LicensingAuthority = profile.LicensingAuthority,
+        LicenseExpiryDate = profile.LicenseExpiryDate,
+        Notes = profile.CredentialReviewNotes!
+    };
 
     private static async Task SeedPatientAsync(UserManager<ApplicationUser> userManager, ApplicationDbContext context, string demoPassword)
     {

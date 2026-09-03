@@ -79,6 +79,68 @@ public class DoctorCredentialTests
         Assert.Equal("License verified with issuing authority.", audit.Notes);
     }
 
+    [Fact]
+    public async Task ExpiredAndUnreviewedApprovalsAreNotPubliclyBookable()
+    {
+        using var provider = CreateProvider();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var expiredUser = CreateUser("expired-doctor@example.com");
+        var unreviewedUser = CreateUser("unreviewed-doctor@example.com");
+        Assert.True((await userManager.CreateAsync(expiredUser)).Succeeded);
+        Assert.True((await userManager.CreateAsync(unreviewedUser)).Succeeded);
+        var expiredDoctor = ApprovedDoctor(expiredUser.Id, new DateTime(2026, 8, 1), DateTime.UtcNow);
+        var unreviewedDoctor = ApprovedDoctor(unreviewedUser.Id, new DateTime(2027, 8, 1), null);
+        context.DoctorProfiles.AddRange(expiredDoctor, unreviewedDoctor);
+        await context.SaveChangesAsync();
+        var service = new DoctorService(
+            context,
+            userManager,
+            new RecordingNotificationService(),
+            new FixedClinicClock(),
+            null!,
+            NullLogger<DoctorService>.Instance);
+
+        var directory = await service.GetAllAsync();
+
+        Assert.Empty(directory.Items);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetByIdAsync(expiredDoctor.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetAvailableSlotsAsync(unreviewedDoctor.Id, new DateTime(2026, 8, 10)));
+        var appointmentService = new AppointmentService(
+            context, null!, null!, new FixedClinicClock());
+        await Assert.ThrowsAsync<BadRequestException>(() => appointmentService.CreateAsync(
+            "patient-user",
+            new CarePoint.Application.DTOs.Appointments.CreateAppointmentDto
+            {
+                DoctorProfileId = expiredDoctor.Id,
+                ClinicId = Guid.NewGuid(),
+                AppointmentDate = new DateTime(2026, 8, 10),
+                StartTime = new TimeOnly(9, 0),
+                EndTime = new TimeOnly(9, 30)
+            }));
+    }
+
+    private static ApplicationUser CreateUser(string email) => new()
+    {
+        UserName = email,
+        Email = email,
+        FirstName = "Credential",
+        LastName = "Doctor"
+    };
+
+    private static DoctorProfile ApprovedDoctor(
+        string userId, DateTime expiryDate, DateTime? reviewedAt) => new()
+    {
+        UserId = userId,
+        ApprovalStatus = DoctorApprovalStatus.Approved,
+        LicenseNumber = $"JMC-{Guid.NewGuid():N}",
+        LicensingAuthority = "Jordan Medical Council",
+        LicenseExpiryDate = expiryDate,
+        CredentialsReviewedAt = reviewedAt
+    };
+
     private static ServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();

@@ -36,12 +36,20 @@ public class ClinicBookingTests
         var doctor = new DoctorProfile
         {
             UserId = "booking-doctor",
-            ApprovalStatus = DoctorApprovalStatus.Approved
+            ApprovalStatus = DoctorApprovalStatus.Approved,
+            LicenseNumber = "JMC-BOOKING-1",
+            LicensingAuthority = "Jordan Medical Council",
+            LicenseExpiryDate = new DateTime(2027, 8, 1),
+            CredentialsReviewedAt = new DateTime(2026, 7, 1)
         };
         var otherDoctor = new DoctorProfile
         {
             UserId = "other-doctor",
-            ApprovalStatus = DoctorApprovalStatus.Approved
+            ApprovalStatus = DoctorApprovalStatus.Approved,
+            LicenseNumber = "JMC-BOOKING-2",
+            LicensingAuthority = "Jordan Medical Council",
+            LicenseExpiryDate = new DateTime(2027, 8, 1),
+            CredentialsReviewedAt = new DateTime(2026, 7, 1)
         };
         var detachedClinic = new Clinic { Name = "Detached", IsActive = true };
         var inactiveClinic = new Clinic { Name = "Inactive", IsActive = false };
