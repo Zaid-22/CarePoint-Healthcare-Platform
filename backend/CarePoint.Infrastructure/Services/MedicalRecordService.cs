@@ -144,6 +144,8 @@ public class MedicalRecordService : IMedicalRecordService
     {
         if (string.IsNullOrWhiteSpace(dto.ChangeReason))
             throw new BadRequestException("A reason is required when correcting a medical record.");
+        if (dto.RowVersion == null || dto.RowVersion.Length != 8)
+            throw new BadRequestException("A valid medical record row version is required.");
 
         var record = await _context.MedicalRecords
             .Include(r => r.Appointment)
@@ -170,6 +172,8 @@ public class MedicalRecordService : IMedicalRecordService
         record.Diagnosis = dto.Diagnosis;
         record.Treatment = dto.Treatment;
         record.Notes = dto.Notes;
+        record.UpdatedAt = DateTime.UtcNow;
+        _context.Entry(record).Property(candidate => candidate.UpdatedAt).IsModified = true;
         try
         {
             await _context.SaveChangesAsync();
