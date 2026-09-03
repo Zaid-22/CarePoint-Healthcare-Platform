@@ -9,6 +9,7 @@ using CarePoint.Infrastructure.Identity;
 using CarePoint.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CarePoint.Tests;
 
@@ -109,6 +110,39 @@ public class ClinicBookingTests
 
         Assert.Contains("future appointments", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.True(clinic.IsActive);
+    }
+
+    [Fact]
+    public async Task ClinicAssignmentWithFutureAppointmentsCannotBeRemoved()
+    {
+        await using var context = CreateContext();
+        var clinic = new Clinic { Name = "Assigned clinic", IsActive = true };
+        var doctor = new DoctorProfile { UserId = "assigned-doctor" };
+        var patient = new PatientProfile { UserId = "assigned-patient" };
+        var assignment = new ClinicDoctor { Clinic = clinic, DoctorProfile = doctor };
+        context.AddRange(clinic, doctor, patient, assignment, new Appointment
+        {
+            Clinic = clinic,
+            DoctorProfile = doctor,
+            PatientProfile = patient,
+            AppointmentDate = new DateTime(2026, 8, 10),
+            StartTime = new TimeOnly(11, 0),
+            EndTime = new TimeOnly(11, 30),
+            Status = AppointmentStatus.Pending
+        });
+        await context.SaveChangesAsync();
+        var service = new DoctorService(
+            context,
+            null!,
+            null!,
+            new FixedClinicClock(),
+            null!,
+            NullLogger<DoctorService>.Instance);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            service.AssignClinicsAsync(doctor.Id, []));
+
+        Assert.Contains(context.ClinicDoctors, current => current.Id == assignment.Id);
     }
 
     private static ApplicationUser EnabledUser(string id) => new()

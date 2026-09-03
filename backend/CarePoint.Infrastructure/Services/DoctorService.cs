@@ -490,6 +490,8 @@ public class DoctorService : IDoctorService
     public async Task<DoctorDto> AssignClinicsAsync(
         Guid id, IReadOnlyCollection<Guid> clinicIds)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles
             .Include(candidate => candidate.ClinicDoctors)
             .FirstOrDefaultAsync(candidate => candidate.Id == id)
@@ -536,6 +538,7 @@ public class DoctorService : IDoctorService
             ClinicId = clinicId
         }));
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
         _context.ChangeTracker.Clear();
         return await GetByIdInternalAsync(id, requireApproved: false);
     }
