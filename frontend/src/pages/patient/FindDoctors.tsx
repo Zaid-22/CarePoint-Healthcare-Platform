@@ -4,6 +4,7 @@ import type { PublicDoctorDto, SpecialtyDto, AvailableSlotDto, ApiResponse } fro
 import { getClinicDateString } from '../../utils/clinicTime';
 import { resolveApiAssetUrl } from '../../utils/apiAssets';
 import PaginationControls from '../../components/common/PaginationControls';
+import { createLatestRequestGuard } from '../../utils/latestRequest';
 
 const PAGE_SIZE = 20;
 
@@ -22,7 +23,9 @@ export default function FindDoctors() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [skip, setSkip] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const slotRequest = useRef<AbortController | null>(null);
+  const slotRequestGuard = useRef(createLatestRequestGuard());
 
   useEffect(() => {
     async function loadSpecialties() {
@@ -60,9 +63,15 @@ export default function FindDoctors() {
     return () => controller.abort();
   }, [selectedSpecialty, skip, specialties]);
 
+  useEffect(() => () => {
+    slotRequest.current?.abort();
+    slotRequestGuard.current.invalidate();
+  }, []);
+
   const handleSelectDoctor = async (doc: PublicDoctorDto) => {
     setSelectedDoctor(doc);
     setSelectedClinicId(doc.clinics.length === 1 ? doc.clinics[0].id : '');
+    setSlots([]);
     setBookingSlot(null);
     setBookingSuccess(false);
     setBookingError(null);
@@ -73,17 +82,33 @@ export default function FindDoctors() {
     slotRequest.current?.abort();
     const controller = new AbortController();
     slotRequest.current = controller;
+    const requestVersion = slotRequestGuard.current.begin();
+    setSlots([]);
+    setLoadingSlots(true);
     try {
       const res = await api.get<ApiResponse<AvailableSlotDto[]>>(
         `/doctors/${doctorId}/slots?date=${date}`,
         { signal: controller.signal },
       );
-      setSlots(res.data.data || []);
+      if (slotRequestGuard.current.isCurrent(requestVersion))
+        setSlots(res.data.data || []);
     } catch (e) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || !slotRequestGuard.current.isCurrent(requestVersion)) return;
       console.error('Failed to fetch slots', e);
       setSlots([]);
+    } finally {
+      if (slotRequestGuard.current.isCurrent(requestVersion)) setLoadingSlots(false);
     }
+  };
+
+  const closeBookingPanel = () => {
+    slotRequest.current?.abort();
+    slotRequestGuard.current.invalidate();
+    setSelectedDoctor(null);
+    setSelectedClinicId('');
+    setSlots([]);
+    setBookingSlot(null);
+    setLoadingSlots(false);
   };
 
   const handleBook = async () => {
@@ -247,7 +272,7 @@ export default function FindDoctors() {
             skip={skip}
             take={PAGE_SIZE}
             totalCount={totalCount}
-            onPageChange={(nextSkip) => { setSkip(nextSkip); setSelectedDoctor(null); setSelectedClinicId(''); }}
+            onPageChange={(nextSkip) => { setSkip(nextSkip); closeBookingPanel(); }}
           />
         </div>
 
@@ -258,7 +283,7 @@ export default function FindDoctors() {
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700 }}>
                 Schedule with Dr. {selectedDoctor.lastName}
               </h2>
-              <button className="btn btn-ghost" aria-label="Close booking panel" onClick={() => { setSelectedDoctor(null); setSelectedClinicId(''); }}>✕</button>
+              <button className="btn btn-ghost" aria-label="Close booking panel" onClick={closeBookingPanel}>✕</button>
             </div>
 
             {bookingSuccess && (
@@ -299,14 +324,21 @@ export default function FindDoctors() {
                 min={getClinicDateString()}
                 onChange={(e) => {
                   setSelectedDate(e.target.value);
-                  fetchSlots(selectedDoctor.id, e.target.value);
+                  setBookingSlot(null);
+                  setBookingSuccess(false);
+                  setBookingError(null);
+                  void fetchSlots(selectedDoctor.id, e.target.value);
                 }}
               />
             </div>
 
             <label className="form-label" style={{ marginBottom: 8, display: 'block' }}>Available Slots</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-              {slots.length === 0 ? (
+              {loadingSlots ? (
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', gridColumn: '1 / -1' }}>
+                  Loading current availability…
+                </span>
+              ) : slots.length === 0 ? (
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', gridColumn: '1 / -1' }}>
                   No slots available for this date.
                 </span>
