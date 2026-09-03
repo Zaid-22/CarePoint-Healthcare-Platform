@@ -128,17 +128,21 @@ public class DoctorsController : ControllerBase
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}/approve")]
-    public async Task<ActionResult<ApiResponse<DoctorDto>>> Approve(Guid id)
+    public async Task<ActionResult<ApiResponse<DoctorDto>>> Approve(
+        Guid id, [FromBody] ReviewDoctorCredentialsDto dto)
     {
-        var result = await _doctorService.ApproveAsync(id);
+        var reviewerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _doctorService.ApproveAsync(id, reviewerUserId, dto);
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Doctor approved."));
     }
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}/reject")]
-    public async Task<ActionResult<ApiResponse<DoctorDto>>> Reject(Guid id)
+    public async Task<ActionResult<ApiResponse<DoctorDto>>> Reject(
+        Guid id, [FromBody] ReviewDoctorCredentialsDto dto)
     {
-        var result = await _doctorService.RejectAsync(id);
+        var reviewerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _doctorService.RejectAsync(id, reviewerUserId, dto);
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Doctor rejected."));
     }
 

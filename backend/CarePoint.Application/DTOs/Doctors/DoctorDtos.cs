@@ -15,6 +15,12 @@ public class DoctorDto
     public string? Gender { get; set; }
     public string? ProfilePictureUrl { get; set; }
     public DoctorApprovalStatus ApprovalStatus { get; set; }
+    public string? LicenseNumber { get; set; }
+    public string? LicensingAuthority { get; set; }
+    public DateTime? LicenseExpiryDate { get; set; }
+    public DateTime? CredentialsReviewedAt { get; set; }
+    public string? CredentialsReviewedByUserId { get; set; }
+    public string? CredentialReviewNotes { get; set; }
     public List<SpecialtyDto> Specialties { get; set; } = new();
     public List<ClinicDto> Clinics { get; set; } = new();
 }
@@ -49,6 +55,9 @@ public class CreateDoctorDto
     public string? Gender { get; set; }
     public string? ProfilePictureUrl { get; set; }
     public List<Guid> SpecialtyIds { get; set; } = new();
+    public string? LicenseNumber { get; set; }
+    public string? LicensingAuthority { get; set; }
+    public DateTime? LicenseExpiryDate { get; set; }
 }
 
 public class UpdateDoctorDto
@@ -59,6 +68,14 @@ public class UpdateDoctorDto
     public string? Gender { get; set; }
     public string? ProfilePictureUrl { get; set; }
     public List<Guid> SpecialtyIds { get; set; } = new();
+    public string? LicenseNumber { get; set; }
+    public string? LicensingAuthority { get; set; }
+    public DateTime? LicenseExpiryDate { get; set; }
+}
+
+public class ReviewDoctorCredentialsDto
+{
+    public string Notes { get; set; } = string.Empty;
 }
 
 public class DoctorAvailabilityDto

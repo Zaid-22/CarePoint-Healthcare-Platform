@@ -25,6 +25,8 @@ export default function AdminDashboard() {
     approvedCount: 0,
     rejectedCount: 0,
   });
+  const [reviewing, setReviewing] = useState<{ doctor: DoctorDto; action: 'approve' | 'reject' } | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
 
   const fetchDoctors = useCallback(async () => {
     try {
@@ -57,31 +59,26 @@ export default function AdminDashboard() {
     fetchDoctors();
   }, [fetchDoctors]);
 
-  const handleApprove = async (id: string) => {
+  const submitCredentialReview = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!reviewing || !reviewNotes.trim()) return;
     setActionSuccess(null);
     setError(null);
-    setActionLoading(id);
+    setActionLoading(reviewing.doctor.id);
     try {
-      await api.put(`/doctors/${id}/approve`);
-      setActionSuccess('Doctor application approved successfully!');
-      fetchDoctors();
+      await api.put(`/doctors/${reviewing.doctor.id}/${reviewing.action}`, {
+        notes: reviewNotes.trim(),
+      });
+      setActionSuccess(
+        reviewing.action === 'approve'
+          ? 'Doctor credentials reviewed and approved.'
+          : 'Doctor credentials reviewed and rejected.',
+      );
+      setReviewing(null);
+      setReviewNotes('');
+      await fetchDoctors();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to approve doctor.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    setActionSuccess(null);
-    setError(null);
-    setActionLoading(id);
-    try {
-      await api.put(`/doctors/${id}/reject`);
-      setActionSuccess('Doctor application rejected.');
-      fetchDoctors();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to reject doctor.');
+      setError(err.response?.data?.message || 'Failed to record the credential review.');
     } finally {
       setActionLoading(null);
     }
@@ -263,6 +260,19 @@ export default function AdminDashboard() {
                         ✉️ {doc.email} • 📞 {doc.phoneNumber || 'No phone'} • Fee: {doc.consultationFee} JOD
                       </div>
 
+                      <div style={{ marginTop: 8, padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem' }}>
+                        <strong>License:</strong>{' '}
+                        {doc.licenseNumber && doc.licensingAuthority && doc.licenseExpiryDate
+                          ? `${doc.licenseNumber} · ${doc.licensingAuthority} · expires ${new Date(doc.licenseExpiryDate).toLocaleDateString()}`
+                          : 'Credential details incomplete'}
+                        {doc.credentialsReviewedAt && (
+                          <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+                            Reviewed {new Date(doc.credentialsReviewedAt).toLocaleString()}
+                            {doc.credentialReviewNotes ? ` · ${doc.credentialReviewNotes}` : ''}
+                          </div>
+                        )}
+                      </div>
+
                       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                         {doc.specialties && doc.specialties.length > 0 ? (
                           doc.specialties.map((s) => (
@@ -319,7 +329,7 @@ export default function AdminDashboard() {
                       <button
                         className="btn btn-primary"
                         disabled={actionLoading === doc.id}
-                        onClick={() => handleApprove(doc.id)}
+                        onClick={() => { setReviewing({ doctor: doc, action: 'approve' }); setReviewNotes(''); }}
                         style={{ fontSize: '0.85rem', gap: 6 }}
                       >
                         <CheckIcon size={14} color="white" /> Approve
@@ -330,7 +340,7 @@ export default function AdminDashboard() {
                       <button
                         className="btn btn-ghost"
                         disabled={actionLoading === doc.id}
-                        onClick={() => handleReject(doc.id)}
+                        onClick={() => { setReviewing({ doctor: doc, action: 'reject' }); setReviewNotes(''); }}
                         style={{ fontSize: '0.85rem', color: 'var(--color-rose-600)' }}
                       >
                         Reject
@@ -349,6 +359,40 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {reviewing && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <form className="card admin-modal" role="dialog" aria-modal="true" aria-labelledby="credential-review-title" onSubmit={submitCredentialReview}>
+            <div>
+              <span className="badge badge-amber">Credential review</span>
+              <h2 id="credential-review-title" style={{ marginTop: 10 }}>
+                {reviewing.action === 'approve' ? 'Approve' : 'Reject'} Dr. {reviewing.doctor.firstName} {reviewing.doctor.lastName}
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', marginTop: 6 }}>
+                {reviewing.doctor.licenseNumber || 'No license number'} · {reviewing.doctor.licensingAuthority || 'No authority'}
+              </p>
+            </div>
+            <label className="form-group">
+              <span className="form-label">Review findings</span>
+              <textarea
+                className="form-input"
+                rows={4}
+                maxLength={1000}
+                required
+                value={reviewNotes}
+                onChange={(event) => setReviewNotes(event.target.value)}
+                placeholder="Record what was checked and the reason for this decision."
+              />
+            </label>
+            <div className="admin-modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setReviewing(null)} disabled={actionLoading === reviewing.doctor.id}>Cancel</button>
+              <button className={reviewing.action === 'approve' ? 'btn btn-primary' : 'btn btn-danger'} type="submit" disabled={!reviewNotes.trim() || actionLoading === reviewing.doctor.id}>
+                {actionLoading === reviewing.doctor.id ? 'Recording…' : `Record ${reviewing.action}`}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

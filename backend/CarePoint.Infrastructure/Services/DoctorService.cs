@@ -185,6 +185,10 @@ public class DoctorService : IDoctorService
         if (existing != null)
             throw new ConflictException("Doctor profile already exists.");
 
+        var credentials = ValidateCredentials(
+            dto.LicenseNumber, dto.LicensingAuthority, dto.LicenseExpiryDate);
+        await EnsureLicenseIsAvailableAsync(credentials.Number, credentials.Authority);
+
         var doctor = new DoctorProfile
         {
             UserId = userId,
@@ -193,6 +197,9 @@ public class DoctorService : IDoctorService
             PhoneNumber = dto.PhoneNumber,
             Gender = dto.Gender,
             ProfilePictureUrl = NormalizeExternalProfilePictureUrl(dto.ProfilePictureUrl),
+            LicenseNumber = credentials.Number,
+            LicensingAuthority = credentials.Authority,
+            LicenseExpiryDate = credentials.ExpiryDate,
             ApprovalStatus = DoctorApprovalStatus.Pending
         };
 
@@ -232,10 +239,28 @@ public class DoctorService : IDoctorService
         if (doctor.UserId != userId)
             throw new ForbiddenException("You can only update your own profile.");
 
+        var credentials = ValidateCredentials(
+            dto.LicenseNumber, dto.LicensingAuthority, dto.LicenseExpiryDate);
+        await EnsureLicenseIsAvailableAsync(credentials.Number, credentials.Authority, doctor.Id);
+        var credentialsChanged =
+            !string.Equals(doctor.LicenseNumber, credentials.Number, StringComparison.Ordinal) ||
+            !string.Equals(doctor.LicensingAuthority, credentials.Authority, StringComparison.Ordinal) ||
+            doctor.LicenseExpiryDate?.Date != credentials.ExpiryDate.Date;
+
         doctor.Bio = dto.Bio;
         doctor.ConsultationFee = dto.ConsultationFee;
         doctor.PhoneNumber = dto.PhoneNumber;
         doctor.Gender = dto.Gender;
+        doctor.LicenseNumber = credentials.Number;
+        doctor.LicensingAuthority = credentials.Authority;
+        doctor.LicenseExpiryDate = credentials.ExpiryDate;
+        if (credentialsChanged)
+        {
+            doctor.ApprovalStatus = DoctorApprovalStatus.Pending;
+            doctor.CredentialsReviewedAt = null;
+            doctor.CredentialsReviewedByUserId = null;
+            doctor.CredentialReviewNotes = null;
+        }
         var oldStorageKey = doctor.ProfilePictureStorageKey;
         var profilePicture = ResolveProfilePictureUpdate(doctor, dto.ProfilePictureUrl);
         doctor.ProfilePictureUrl = profilePicture.Url;
@@ -285,7 +310,10 @@ public class DoctorService : IDoctorService
                 PhoneNumber = dto.PhoneNumber,
                 Gender = dto.Gender,
                 ProfilePictureUrl = dto.ProfilePictureUrl,
-                SpecialtyIds = dto.SpecialtyIds
+                SpecialtyIds = dto.SpecialtyIds,
+                LicenseNumber = dto.LicenseNumber,
+                LicensingAuthority = dto.LicensingAuthority,
+                LicenseExpiryDate = dto.LicenseExpiryDate
             });
         }
 
@@ -383,12 +411,25 @@ public class DoctorService : IDoctorService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<DoctorDto> ApproveAsync(Guid id)
+    public async Task<DoctorDto> ApproveAsync(
+        Guid id, string reviewerUserId, ReviewDoctorCredentialsDto dto)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
+        if (string.IsNullOrWhiteSpace(doctor.LicenseNumber) ||
+            string.IsNullOrWhiteSpace(doctor.LicensingAuthority) ||
+            !doctor.LicenseExpiryDate.HasValue ||
+            doctor.LicenseExpiryDate.Value.Date <= _clinicClock.LocalNow.Date)
+            throw new BadRequestException(
+                "A complete, unexpired professional license is required before approval.");
+        if (string.IsNullOrWhiteSpace(dto.Notes))
+            throw new BadRequestException("Credential review notes are required.");
         doctor.ApprovalStatus = DoctorApprovalStatus.Approved;
+        doctor.CredentialsReviewedAt = DateTime.UtcNow;
+        doctor.CredentialsReviewedByUserId = reviewerUserId;
+        doctor.CredentialReviewNotes = dto.Notes.Trim();
+        AddCredentialReview(doctor, reviewerUserId, DoctorApprovalStatus.Approved, dto.Notes);
         await _context.SaveChangesAsync();
 
         await _notificationService.CreateNotificationAsync(
@@ -403,12 +444,19 @@ public class DoctorService : IDoctorService
         return await GetByIdInternalAsync(id, requireApproved: false);
     }
 
-    public async Task<DoctorDto> RejectAsync(Guid id)
+    public async Task<DoctorDto> RejectAsync(
+        Guid id, string reviewerUserId, ReviewDoctorCredentialsDto dto)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
+        if (string.IsNullOrWhiteSpace(dto.Notes))
+            throw new BadRequestException("Credential review notes are required.");
         doctor.ApprovalStatus = DoctorApprovalStatus.Rejected;
+        doctor.CredentialsReviewedAt = DateTime.UtcNow;
+        doctor.CredentialsReviewedByUserId = reviewerUserId;
+        doctor.CredentialReviewNotes = dto.Notes.Trim();
+        AddCredentialReview(doctor, reviewerUserId, DoctorApprovalStatus.Rejected, dto.Notes);
         var revokedAt = DateTime.UtcNow;
         await _context.RefreshTokens
             .Where(token => token.UserId == doctor.UserId && !token.IsRevoked)
@@ -728,6 +776,46 @@ public class DoctorService : IDoctorService
         return trimmed;
     }
 
+    private (string Number, string Authority, DateTime ExpiryDate) ValidateCredentials(
+        string? licenseNumber, string? licensingAuthority, DateTime? licenseExpiryDate)
+    {
+        var normalizedNumber = licenseNumber?.Trim();
+        var normalizedAuthority = licensingAuthority?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedNumber) ||
+            string.IsNullOrWhiteSpace(normalizedAuthority) ||
+            !licenseExpiryDate.HasValue ||
+            licenseExpiryDate.Value.Date <= _clinicClock.LocalNow.Date)
+            throw new BadRequestException(
+                "Provide a professional license number, authority, and future expiry date.");
+        return (normalizedNumber, normalizedAuthority, licenseExpiryDate.Value.Date);
+    }
+
+    private async Task EnsureLicenseIsAvailableAsync(
+        string licenseNumber, string licensingAuthority, Guid? excludedDoctorId = null)
+    {
+        var duplicate = await _context.DoctorProfiles.AsNoTracking()
+            .AnyAsync(profile => profile.LicenseNumber == licenseNumber &&
+                profile.LicensingAuthority == licensingAuthority &&
+                (!excludedDoctorId.HasValue || profile.Id != excludedDoctorId.Value));
+        if (duplicate)
+            throw new ConflictException("This professional license is already registered.");
+    }
+
+    private void AddCredentialReview(
+        DoctorProfile doctor, string reviewerUserId, DoctorApprovalStatus decision, string notes)
+    {
+        _context.DoctorCredentialReviews.Add(new DoctorCredentialReview
+        {
+            DoctorProfileId = doctor.Id,
+            ReviewedByUserId = reviewerUserId,
+            Decision = decision,
+            LicenseNumber = doctor.LicenseNumber,
+            LicensingAuthority = doctor.LicensingAuthority,
+            LicenseExpiryDate = doctor.LicenseExpiryDate,
+            Notes = notes.Trim()
+        });
+    }
+
     private static (string? Url, bool KeepStoredImage) ResolveProfilePictureUpdate(
         DoctorProfile doctor, string? requestedUrl)
     {
@@ -809,6 +897,12 @@ public class DoctorService : IDoctorService
         Gender = doctor.Gender,
         ProfilePictureUrl = doctor.ProfilePictureUrl,
         ApprovalStatus = doctor.ApprovalStatus,
+        LicenseNumber = doctor.LicenseNumber,
+        LicensingAuthority = doctor.LicensingAuthority,
+        LicenseExpiryDate = doctor.LicenseExpiryDate,
+        CredentialsReviewedAt = doctor.CredentialsReviewedAt,
+        CredentialsReviewedByUserId = doctor.CredentialsReviewedByUserId,
+        CredentialReviewNotes = doctor.CredentialReviewNotes,
         Specialties = doctor.DoctorSpecialties.Select(ds => new SpecialtyDto
         {
             Id = ds.Specialty.Id,

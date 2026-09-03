@@ -190,6 +190,56 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.ToTable("DoctorAvailabilities");
                 });
 
+            modelBuilder.Entity("CarePoint.Domain.Entities.DoctorCredentialReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("DoctorProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("LicenseExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LicenseNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LicensingAuthority")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReviewedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("DoctorProfileId", "CreatedAt");
+
+                    b.ToTable("DoctorCredentialReviews");
+                });
+
             modelBuilder.Entity("CarePoint.Domain.Entities.DoctorProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -214,6 +264,17 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CredentialReviewNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("CredentialsReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CredentialsReviewedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
@@ -223,6 +284,17 @@ namespace CarePoint.Infrastructure.Data.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LicenseExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LicenseNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LicensingAuthority")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
@@ -247,6 +319,10 @@ namespace CarePoint.Infrastructure.Data.Migrations
 
                     b.HasIndex("UserId")
                         .IsUnique();
+
+                    b.HasIndex("LicensingAuthority", "LicenseNumber")
+                        .IsUnique()
+                        .HasFilter("[LicensingAuthority] IS NOT NULL AND [LicenseNumber] IS NOT NULL");
 
                     b.ToTable("DoctorProfiles");
                 });
@@ -1060,6 +1136,17 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.Navigation("DoctorProfile");
                 });
 
+            modelBuilder.Entity("CarePoint.Domain.Entities.DoctorCredentialReview", b =>
+                {
+                    b.HasOne("CarePoint.Domain.Entities.DoctorProfile", "DoctorProfile")
+                        .WithMany("CredentialReviews")
+                        .HasForeignKey("DoctorProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DoctorProfile");
+                });
+
             modelBuilder.Entity("CarePoint.Domain.Entities.DoctorProfile", b =>
                 {
                     b.HasOne("CarePoint.Infrastructure.Identity.ApplicationUser", null)
@@ -1289,6 +1376,8 @@ namespace CarePoint.Infrastructure.Data.Migrations
                     b.Navigation("Availabilities");
 
                     b.Navigation("ClinicDoctors");
+
+                    b.Navigation("CredentialReviews");
 
                     b.Navigation("DoctorSpecialties");
                 });

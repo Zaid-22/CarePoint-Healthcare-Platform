@@ -20,6 +20,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<PatientProfile> PatientProfiles => Set<PatientProfile>();
     public DbSet<DoctorProfile> DoctorProfiles => Set<DoctorProfile>();
+    public DbSet<DoctorCredentialReview> DoctorCredentialReviews => Set<DoctorCredentialReview>();
     public DbSet<Specialty> Specialties => Set<Specialty>();
     public DbSet<DoctorSpecialty> DoctorSpecialties => Set<DoctorSpecialty>();
     public DbSet<Clinic> Clinics => Set<Clinic>();

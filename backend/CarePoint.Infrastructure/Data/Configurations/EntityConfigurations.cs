@@ -32,6 +32,13 @@ public class DoctorProfileConfiguration : IEntityTypeConfiguration<DoctorProfile
         builder.Property(d => d.ProfilePictureUrl).HasMaxLength(1000);
         builder.Property(d => d.ProfilePictureStorageKey).HasMaxLength(1000);
         builder.Property(d => d.ArchivedProfilePictureValue).HasColumnType("nvarchar(max)");
+        builder.Property(d => d.LicenseNumber).HasMaxLength(100);
+        builder.Property(d => d.LicensingAuthority).HasMaxLength(200);
+        builder.Property(d => d.CredentialsReviewedByUserId).HasMaxLength(450);
+        builder.Property(d => d.CredentialReviewNotes).HasMaxLength(1000);
+        builder.HasIndex(d => new { d.LicensingAuthority, d.LicenseNumber })
+            .IsUnique()
+            .HasFilter("[LicensingAuthority] IS NOT NULL AND [LicenseNumber] IS NOT NULL");
         builder.Property(d => d.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
     }
 }
@@ -44,6 +51,25 @@ public class SpecialtyConfiguration : IEntityTypeConfiguration<Specialty>
         builder.HasIndex(s => s.Name).IsUnique();
         builder.Property(s => s.Name).IsRequired().HasMaxLength(100);
         builder.Property(s => s.Description).HasMaxLength(500);
+    }
+}
+
+public class DoctorCredentialReviewConfiguration : IEntityTypeConfiguration<DoctorCredentialReview>
+{
+    public void Configure(EntityTypeBuilder<DoctorCredentialReview> builder)
+    {
+        builder.HasKey(review => review.Id);
+        builder.HasIndex(review => new { review.DoctorProfileId, review.CreatedAt });
+        builder.HasIndex(review => review.ReviewedByUserId);
+        builder.Property(review => review.ReviewedByUserId).IsRequired().HasMaxLength(450);
+        builder.Property(review => review.Decision).HasConversion<string>().HasMaxLength(20);
+        builder.Property(review => review.LicenseNumber).HasMaxLength(100);
+        builder.Property(review => review.LicensingAuthority).HasMaxLength(200);
+        builder.Property(review => review.Notes).IsRequired().HasMaxLength(1000);
+        builder.HasOne(review => review.DoctorProfile)
+            .WithMany(doctor => doctor.CredentialReviews)
+            .HasForeignKey(review => review.DoctorProfileId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 

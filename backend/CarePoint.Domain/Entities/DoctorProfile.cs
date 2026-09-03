@@ -18,6 +18,12 @@ public class DoctorProfile : BaseEntity, ISoftDeletable
     public string? ProfilePictureUrl { get; set; }
     public string? ProfilePictureStorageKey { get; set; }
     public string? ArchivedProfilePictureValue { get; set; }
+    public string? LicenseNumber { get; set; }
+    public string? LicensingAuthority { get; set; }
+    public DateTime? LicenseExpiryDate { get; set; }
+    public DateTime? CredentialsReviewedAt { get; set; }
+    public string? CredentialsReviewedByUserId { get; set; }
+    public string? CredentialReviewNotes { get; set; }
 
     // Soft delete
     public bool IsDeleted { get; set; }
@@ -28,4 +34,6 @@ public class DoctorProfile : BaseEntity, ISoftDeletable
     public ICollection<ClinicDoctor> ClinicDoctors { get; set; } = new List<ClinicDoctor>();
     public ICollection<DoctorAvailability> Availabilities { get; set; } = new List<DoctorAvailability>();
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
+    public ICollection<DoctorCredentialReview> CredentialReviews { get; set; } =
+        new List<DoctorCredentialReview>();
 }

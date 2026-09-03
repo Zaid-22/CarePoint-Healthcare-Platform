@@ -1,6 +1,7 @@
 using System.Reflection;
 using CarePoint.API.Controllers;
 using CarePoint.Application.DTOs.Medical;
+using CarePoint.Application.DTOs.Doctors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
@@ -56,6 +57,21 @@ public class ApiRouteAuthorizationTests
     {
         AssertAuthorizedRoute<DoctorsController, HttpPutAttribute>(
             nameof(DoctorsController.AssignClinics), "{id:guid}/clinics", "Admin");
+    }
+
+    [Theory]
+    [InlineData(nameof(DoctorsController.Approve))]
+    [InlineData(nameof(DoctorsController.Reject))]
+    public void DoctorCredentialDecisionsRequireAdminAndReviewBody(string methodName)
+    {
+        AssertAuthorizedRoute<DoctorsController, HttpPutAttribute>(
+            methodName, methodName == nameof(DoctorsController.Approve)
+                ? "{id:guid}/approve"
+                : "{id:guid}/reject", "Admin");
+        var body = typeof(DoctorsController).GetMethod(methodName)!
+            .GetParameters()
+            .Single(parameter => parameter.GetCustomAttribute<FromBodyAttribute>() != null);
+        Assert.Equal(typeof(ReviewDoctorCredentialsDto), body.ParameterType);
     }
 
     [Fact]

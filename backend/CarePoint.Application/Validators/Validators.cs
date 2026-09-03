@@ -32,6 +32,17 @@ public class RegisterValidator : AbstractValidator<RegisterDto>
             .MaximumLength(1000)
             .Must(ProfilePictureRules.IsPermittedExternalUrl)
             .WithMessage("Profile picture URL must be an HTTPS URL.");
+        RuleFor(x => x.LicenseNumber)
+            .NotEmpty().MaximumLength(100)
+            .When(x => x.Role == "Doctor");
+        RuleFor(x => x.LicensingAuthority)
+            .NotEmpty().MaximumLength(200)
+            .When(x => x.Role == "Doctor");
+        RuleFor(x => x.LicenseExpiryDate)
+            .NotNull()
+            .Must(date => date.HasValue && date.Value.Date > DateTime.UtcNow.Date)
+            .WithMessage("Doctor license expiry date must be in the future.")
+            .When(x => x.Role == "Doctor");
     }
 }
 
@@ -134,6 +145,14 @@ public class CreateDoctorValidator : AbstractValidator<CreateDoctorDto>
             .MaximumLength(1000)
             .Must(ProfilePictureRules.IsPermittedExternalUrl)
             .WithMessage("Profile picture URL must be an HTTPS URL.");
+        AddCredentialRules();
+    }
+
+    private void AddCredentialRules()
+    {
+        RuleFor(x => x.LicenseNumber).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LicensingAuthority).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.LicenseExpiryDate).NotNull();
     }
 }
 
@@ -150,7 +169,16 @@ public class UpdateDoctorValidator : AbstractValidator<UpdateDoctorDto>
             .MaximumLength(1000)
             .Must(ProfilePictureRules.IsPermittedReference)
             .WithMessage("Profile picture must be an HTTPS URL or an uploaded CarePoint image.");
+        RuleFor(x => x.LicenseNumber).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LicensingAuthority).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.LicenseExpiryDate).NotNull();
     }
+}
+
+public class ReviewDoctorCredentialsValidator : AbstractValidator<ReviewDoctorCredentialsDto>
+{
+    public ReviewDoctorCredentialsValidator() =>
+        RuleFor(x => x.Notes).NotEmpty().MaximumLength(1000);
 }
 
 public class CreateAvailabilityValidator : AbstractValidator<CreateAvailabilityDto>

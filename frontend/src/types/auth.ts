@@ -16,6 +16,9 @@ export interface RegisterRequest {
   gender?: string;
   bio?: string;
   profilePictureUrl?: string;
+  licenseNumber?: string;
+  licensingAuthority?: string;
+  licenseExpiryDate?: string;
 }
 
 export interface AuthResponse {

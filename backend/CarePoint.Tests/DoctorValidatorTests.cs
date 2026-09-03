@@ -79,6 +79,8 @@ public class DoctorValidatorTests
         Assert.DoesNotContain(nameof(DoctorDto.PhoneNumber), propertyNames);
         Assert.DoesNotContain(nameof(DoctorDto.Gender), propertyNames);
         Assert.DoesNotContain(nameof(DoctorDto.ApprovalStatus), propertyNames);
+        Assert.DoesNotContain(nameof(DoctorDto.LicenseNumber), propertyNames);
+        Assert.DoesNotContain(nameof(DoctorDto.LicensingAuthority), propertyNames);
     }
 
     [Fact]

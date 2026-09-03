@@ -262,6 +262,39 @@ export default function RegisterPage() {
 
                 <div className="auth-form-grid">
                   <div className="form-group">
+                    <label className="form-label">Professional License Number</label>
+                    <input
+                      className="form-input"
+                      maxLength={100}
+                      placeholder="e.g. JMC-12345"
+                      {...register('licenseNumber', { required: 'License number is required' })}
+                    />
+                    {errors.licenseNumber && <span className="form-error">{errors.licenseNumber.message}</span>}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Licensing Authority</label>
+                    <input
+                      className="form-input"
+                      maxLength={200}
+                      placeholder="e.g. Jordan Medical Council"
+                      {...register('licensingAuthority', { required: 'Licensing authority is required' })}
+                    />
+                    {errors.licensingAuthority && <span className="form-error">{errors.licensingAuthority.message}</span>}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">License Expiry Date</label>
+                  <input
+                    className="form-input"
+                    type="date"
+                    {...register('licenseExpiryDate', { required: 'License expiry date is required' })}
+                  />
+                  {errors.licenseExpiryDate && <span className="form-error">{errors.licenseExpiryDate.message}</span>}
+                </div>
+
+                <div className="auth-form-grid">
+                  <div className="form-group">
                     <label className="form-label">Consultation Fee (JOD)</label>
                     <input className="form-input" type="number" min="0" step="0.01" placeholder="50.00"
                       {...register('consultationFee', { min: { value: 0, message: 'Fee cannot be negative' } })} />

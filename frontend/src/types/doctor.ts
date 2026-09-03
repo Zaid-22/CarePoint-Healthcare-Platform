@@ -27,6 +27,12 @@ export interface DoctorDto {
   gender: string;
   profilePictureUrl?: string;
   approvalStatus: number;
+  licenseNumber?: string;
+  licensingAuthority?: string;
+  licenseExpiryDate?: string;
+  credentialsReviewedAt?: string;
+  credentialsReviewedByUserId?: string;
+  credentialReviewNotes?: string;
   specialties: SpecialtyDto[];
   clinics: ClinicDto[];
 }
@@ -56,6 +62,9 @@ export interface UpdateDoctorRequest {
   gender?: string;
   profilePictureUrl?: string;
   specialtyIds: string[];
+  licenseNumber: string;
+  licensingAuthority: string;
+  licenseExpiryDate: string;
 }
 
 export interface AvailableSlotDto {

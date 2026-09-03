@@ -41,8 +41,8 @@ public interface IDoctorService
     Task<ProfileImageContent> GetProfileImageAsync(
         Guid doctorId, string? requesterUserId = null, string? requesterRole = null);
     Task DeleteAsync(Guid id);
-    Task<DoctorDto> ApproveAsync(Guid id);
-    Task<DoctorDto> RejectAsync(Guid id);
+    Task<DoctorDto> ApproveAsync(Guid id, string reviewerUserId, ReviewDoctorCredentialsDto dto);
+    Task<DoctorDto> RejectAsync(Guid id, string reviewerUserId, ReviewDoctorCredentialsDto dto);
     Task<DoctorDto> AssignClinicsAsync(Guid id, IReadOnlyCollection<Guid> clinicIds);
     Task<IReadOnlyList<DoctorAvailabilityDto>> GetAvailabilityAsync(
         Guid doctorId, string? requesterUserId = null, string? requesterRole = null);

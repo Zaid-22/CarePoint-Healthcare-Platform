@@ -51,6 +51,26 @@ public class AuthService : IAuthService
         if (existingUser != null)
             throw new ConflictException($"Email '{dto.Email}' is already registered.");
 
+        string? licenseNumber = null;
+        string? licensingAuthority = null;
+        if (dto.Role == "Doctor")
+        {
+            licenseNumber = dto.LicenseNumber?.Trim();
+            licensingAuthority = dto.LicensingAuthority?.Trim();
+            if (string.IsNullOrWhiteSpace(licenseNumber) ||
+                string.IsNullOrWhiteSpace(licensingAuthority) ||
+                !dto.LicenseExpiryDate.HasValue ||
+                dto.LicenseExpiryDate.Value.Date <= DateTime.UtcNow.Date)
+            {
+                throw new BadRequestException(
+                    "Doctors must provide a valid license number, authority, and future expiry date.");
+            }
+            if (await _context.DoctorProfiles.AnyAsync(profile =>
+                    profile.LicenseNumber == licenseNumber &&
+                    profile.LicensingAuthority == licensingAuthority))
+                throw new ConflictException("This professional license is already registered.");
+        }
+
         List<Guid>? validSpecialtyIds = null;
         if (dto.Role == "Doctor" && dto.SpecialtyIds is { Count: > 0 })
         {
@@ -102,6 +122,9 @@ public class AuthService : IAuthService
                 PhoneNumber = dto.PhoneNumber,
                 Gender = dto.Gender,
                 ProfilePictureUrl = dto.ProfilePictureUrl,
+                LicenseNumber = licenseNumber,
+                LicensingAuthority = licensingAuthority,
+                LicenseExpiryDate = dto.LicenseExpiryDate?.Date,
                 ApprovalStatus = Domain.Enums.DoctorApprovalStatus.Pending
             };
             _context.DoctorProfiles.Add(doctorProfile);

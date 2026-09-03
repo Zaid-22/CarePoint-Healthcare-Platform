@@ -32,6 +32,9 @@ export default function DoctorProfilePage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [gender, setGender] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [licensingAuthority, setLicensingAuthority] = useState('');
+  const [licenseExpiryDate, setLicenseExpiryDate] = useState('');
 
   // Schedule / Availability state
   const [availabilities, setAvailabilities] = useState<DoctorAvailabilityDto[]>([]);
@@ -74,6 +77,9 @@ export default function DoctorProfilePage() {
           setPhoneNumber(doc.phoneNumber || '');
           setGender(doc.gender || '');
           setProfilePictureUrl(doc.profilePictureUrl || '');
+          setLicenseNumber(doc.licenseNumber || '');
+          setLicensingAuthority(doc.licensingAuthority || '');
+          setLicenseExpiryDate(doc.licenseExpiryDate?.slice(0, 10) || '');
           setSelectedSpecialtyIds(doc.specialties ? doc.specialties.map((s) => s.id) : []);
           fetchAvailability(doc.id);
         }
@@ -147,6 +153,9 @@ export default function DoctorProfilePage() {
         gender: gender || '',
         profilePictureUrl: profilePictureUrl || '',
         specialtyIds: validSpecialtyIds,
+        licenseNumber: licenseNumber.trim(),
+        licensingAuthority: licensingAuthority.trim(),
+        licenseExpiryDate,
       };
 
       const res = await api.put<ApiResponse<DoctorDto>>('/doctors/me', payload);
@@ -389,6 +398,35 @@ export default function DoctorProfilePage() {
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                 Set your consultation pricing, contact phone, and professional bio for patient discovery.
               </p>
+            </div>
+
+            <div style={{ padding: 18, border: '1px solid var(--color-teal-200)', borderRadius: 'var(--radius-md)', background: 'var(--color-teal-50)', display: 'grid', gap: 16 }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem' }}>Professional credentials</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+                  Changing license details returns the profile to pending review to protect patients.
+                </p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+                <label className="form-group">
+                  <span className="form-label">License number</span>
+                  <input className="form-input" maxLength={100} required value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} />
+                </label>
+                <label className="form-group">
+                  <span className="form-label">Licensing authority</span>
+                  <input className="form-input" maxLength={200} required value={licensingAuthority} onChange={(event) => setLicensingAuthority(event.target.value)} />
+                </label>
+                <label className="form-group">
+                  <span className="form-label">Expiry date</span>
+                  <input className="form-input" type="date" required value={licenseExpiryDate} onChange={(event) => setLicenseExpiryDate(event.target.value)} />
+                </label>
+              </div>
+              {profile?.credentialsReviewedAt && (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+                  Last reviewed {new Date(profile.credentialsReviewedAt).toLocaleString()}
+                  {profile.credentialReviewNotes ? ` · ${profile.credentialReviewNotes}` : ''}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
