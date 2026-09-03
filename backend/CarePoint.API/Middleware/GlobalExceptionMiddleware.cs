@@ -43,6 +43,8 @@ public class GlobalExceptionMiddleware
             ConflictException => (HttpStatusCode.Conflict, exception.Message),
             DbUpdateConcurrencyException => (HttpStatusCode.Conflict,
                 "This record was changed by another request. Reload it and try again."),
+            DbUpdateException => (HttpStatusCode.Conflict,
+                "This request conflicts with data that already exists or changed."),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized access."),
             _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.")
         };

@@ -51,7 +51,11 @@ public class SpecialtyService : ISpecialtyService
 
     public async Task<SpecialtyDto> CreateAsync(CreateSpecialtyDto dto)
     {
-        var specialty = new Specialty { Name = dto.Name, Description = dto.Description };
+        var name = dto.Name.Trim();
+        if (await _context.Specialties.AnyAsync(s => s.Name == name))
+            throw new ConflictException("A specialty with this name already exists.");
+
+        var specialty = new Specialty { Name = name, Description = dto.Description?.Trim() };
         _context.Specialties.Add(specialty);
         await _context.SaveChangesAsync();
         return new SpecialtyDto
@@ -67,8 +71,12 @@ public class SpecialtyService : ISpecialtyService
     {
         var s = await _context.Specialties.FindAsync(id)
             ?? throw new NotFoundException("Specialty", id);
-        s.Name = dto.Name;
-        s.Description = dto.Description;
+        var name = dto.Name.Trim();
+        if (await _context.Specialties.AnyAsync(candidate => candidate.Id != id && candidate.Name == name))
+            throw new ConflictException("A specialty with this name already exists.");
+
+        s.Name = name;
+        s.Description = dto.Description?.Trim();
         await _context.SaveChangesAsync();
         return await GetByIdAsync(id);
     }
