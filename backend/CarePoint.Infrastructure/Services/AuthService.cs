@@ -185,7 +185,7 @@ public class AuthService : IAuthService
         await _userManager.ResetAccessFailedCountAsync(user);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var role = roles.FirstOrDefault() ?? "Patient";
+        var role = RequireSingleRole(roles);
 
         var accessToken = await GenerateAccessTokenAsync(user);
         var refreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id);
@@ -248,7 +248,13 @@ public class AuthService : IAuthService
             throw new BadRequestException("Account is locked. Contact an administrator for assistance.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var role = roles.FirstOrDefault() ?? "Patient";
+        if (!UserRoleRules.TryResolveSingleRole(roles, out var role))
+        {
+            await RevokeTokenFamilyAsync(storedToken.FamilyId, revokedAt);
+            await transaction.CommitAsync();
+            throw new ForbiddenException(
+                "Account role configuration is invalid. Contact an administrator.");
+        }
 
         var accessToken = await GenerateAccessTokenAsync(user);
         var newRefreshToken = await GenerateAndStoreRefreshTokenAsync(user.Id, storedToken.FamilyId);
@@ -338,6 +344,7 @@ public class AuthService : IAuthService
             ?? throw new NotFoundException("User", userId);
 
         var roles = await _userManager.GetRolesAsync(user);
+        var role = RequireSingleRole(roles);
 
         return new AuthResponseDto
         {
@@ -345,7 +352,7 @@ public class AuthService : IAuthService
             Email = user.Email!,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            Role = roles.FirstOrDefault() ?? "Patient",
+            Role = role,
             Roles = roles.ToList()
         };
     }
@@ -355,6 +362,7 @@ public class AuthService : IAuthService
     private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
     {
         var roles = await _userManager.GetRolesAsync(user);
+        _ = RequireSingleRole(roles);
 
         var claims = new List<Claim>
         {
@@ -409,6 +417,13 @@ public class AuthService : IAuthService
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(token => token.IsRevoked, true)
                 .SetProperty(token => token.RevokedAt, revokedAt));
+    }
+
+    private static string RequireSingleRole(IEnumerable<string> roles)
+    {
+        if (UserRoleRules.TryResolveSingleRole(roles, out var role)) return role;
+        throw new ForbiddenException(
+            "Account role configuration is invalid. Contact an administrator.");
     }
 
     private async Task RevokeTokenFamilyAsync(Guid familyId, DateTime revokedAt)
