@@ -125,6 +125,8 @@ npm --prefix frontend run lint
 npm --prefix frontend run build
 ```
 
+The SQL Server integration tests are reported as skipped unless `CAREPOINT_TEST_SQL` is set to a dedicated test database connection string. CI provides this value and runs those tests against SQL Server.
+
 ---
 
 ## Project Architecture

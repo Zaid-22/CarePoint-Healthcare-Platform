@@ -16,13 +16,13 @@ namespace CarePoint.Tests;
 
 public class SqlServerIntegrationTests
 {
-    private static string? ConnectionString =>
-        Environment.GetEnvironmentVariable("CAREPOINT_TEST_SQL");
+    private static string ConnectionString =>
+        Environment.GetEnvironmentVariable("CAREPOINT_TEST_SQL")
+        ?? throw new InvalidOperationException("CAREPOINT_TEST_SQL is required for SQL Server integration tests.");
 
-    [Fact]
+    [SqlServerFact]
     public async Task MedicalRecordRowVersionRejectsConcurrentSqlServerUpdate()
     {
-        if (ConnectionString is null) return;
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlServer(ConnectionString)
             .Options;
@@ -72,10 +72,9 @@ public class SqlServerIntegrationTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => secondContext.SaveChangesAsync());
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task PrescriptionAggregateRejectsStaleItemOnlyCorrectionOnSqlServer()
     {
-        if (ConnectionString is null) return;
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlServer(ConnectionString)
             .Options;
@@ -187,10 +186,9 @@ public class SqlServerIntegrationTests
         Assert.Equal("Original medication", Assert.Single(revision.Items).MedicationName);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task RefreshTokenReuseRevokesEntireFamilyOnSqlServer()
     {
-        if (ConnectionString is null) return;
         using var provider = CreateAuthProvider(ConnectionString);
         using var scope = provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
