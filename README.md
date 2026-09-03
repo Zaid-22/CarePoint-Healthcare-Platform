@@ -55,7 +55,7 @@ Demo accounts are disabled by default. For a disposable local environment, set `
 
 ### Prerequisites
 - **.NET 10.0 SDK**
-- **Node.js** (v18+) & **npm**
+- **Node.js** (v20.19+) & **npm**
 - Docker Desktop (for SQL Server)
 
 ### Configure local secrets
@@ -115,7 +115,7 @@ After configuring `.env`, start all three containers with:
 docker compose up --build
 ```
 
-The SQL Server container includes a readiness check. The API waits for a healthy database before applying local-development migrations, so first startup can take several seconds.
+The SQL Server container includes a readiness check. The API waits for a healthy database before applying local-development migrations, so first startup can take several seconds. The frontend image builds static assets and serves them through Nginx; `/api` requests are proxied to the API container.
 
 ### Verification
 

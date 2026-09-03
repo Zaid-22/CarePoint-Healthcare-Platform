@@ -53,14 +53,13 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_CLINIC_TIME_ZONE: ${CLINIC_TIME_ZONE:-Asia/Amman}
     container_name: carepoint-frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - api
-    environment:
-      - VITE_API_PROXY_TARGET=http://api:8080
-      - VITE_CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Amman}
 
 volumes:
   sqlserver-data:
