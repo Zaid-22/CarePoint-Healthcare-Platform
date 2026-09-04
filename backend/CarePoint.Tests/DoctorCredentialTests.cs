@@ -3,6 +3,7 @@ using CarePoint.Application.Interfaces;
 using CarePoint.Application.Validators;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
+using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
 using CarePoint.Infrastructure.Services;

@@ -38,7 +38,7 @@ public class SqlServerIntegrationTests
         await context.SaveChangesAsync();
         context.Specialties.Add(new Specialty { Name = duplicateName });
         var middleware = new GlobalExceptionMiddleware(
-            _ => context.SaveChangesAsync(),
+            async _ => { await context.SaveChangesAsync(); },
             NullLogger<GlobalExceptionMiddleware>.Instance);
         var httpContext = new DefaultHttpContext();
         httpContext.Response.Body = new MemoryStream();
