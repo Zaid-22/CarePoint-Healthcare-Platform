@@ -244,7 +244,10 @@ export default function DoctorPrescriptionPanel({ appointment }: Props) {
             </button>
           </div>
           {prescription.notes && <p style={{ marginTop: 10, fontSize: '0.875rem' }}>{prescription.notes}</p>}
-          <PrescriptionRevisionHistory prescriptionId={prescription.id} />
+          <PrescriptionRevisionHistory
+            prescriptionId={prescription.id}
+            revisionVersion={prescription.rowVersion}
+          />
         </article>
       ))}
     </div>

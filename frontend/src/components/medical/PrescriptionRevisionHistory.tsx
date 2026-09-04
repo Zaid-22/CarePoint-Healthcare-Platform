@@ -1,37 +1,42 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
 import type { ApiResponse, PrescriptionRevisionDto } from '../../types';
 
 interface Props {
   prescriptionId: string;
+  revisionVersion: string;
 }
 
-export default function PrescriptionRevisionHistory({ prescriptionId }: Props) {
+export default function PrescriptionRevisionHistory({ prescriptionId, revisionVersion }: Props) {
   const [open, setOpen] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [revisions, setRevisions] = useState<PrescriptionRevisionDto[]>([]);
 
-  const toggle = async () => {
-    const nextOpen = !open;
-    setOpen(nextOpen);
-    if (!nextOpen || loaded || loading) return;
-
+  const loadRevisions = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     setError('');
     try {
       const response = await api.get<ApiResponse<PrescriptionRevisionDto[]>>(
         `/prescriptions/${prescriptionId}/revisions`,
+        { signal },
       );
       setRevisions(response.data.data ?? []);
-      setLoaded(true);
     } catch (requestError: any) {
+      if (signal.aborted) return;
       setError(requestError.response?.data?.message ?? 'Correction history could not be loaded.');
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
-  };
+  }, [prescriptionId]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const controller = new AbortController();
+    void loadRevisions(controller.signal);
+    return () => controller.abort();
+  }, [loadRevisions, open, revisionVersion]);
 
   return (
     <div style={{ borderTop: '1px dashed var(--border-default)', paddingTop: 12 }}>
@@ -39,7 +44,7 @@ export default function PrescriptionRevisionHistory({ prescriptionId }: Props) {
         type="button"
         className="btn btn-ghost"
         aria-expanded={open}
-        onClick={toggle}
+        onClick={() => setOpen((current) => !current)}
         style={{ padding: '6px 10px', fontSize: '0.8125rem' }}
       >
         {open ? 'Hide correction history' : 'View correction history'}

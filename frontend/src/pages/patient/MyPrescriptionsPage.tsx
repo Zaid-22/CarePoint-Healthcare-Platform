@@ -187,7 +187,7 @@ export default function MyPrescriptionsPage() {
                   </div>
                 ))}
               </div>
-              <PrescriptionRevisionHistory prescriptionId={rx.id} />
+              <PrescriptionRevisionHistory prescriptionId={rx.id} revisionVersion={rx.rowVersion} />
             </div>
           ))}
           <PaginationControls
