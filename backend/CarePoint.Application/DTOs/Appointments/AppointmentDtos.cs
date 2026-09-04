@@ -46,6 +46,7 @@ public class UpdateAppointmentStatusDto
 
 public class RescheduleAppointmentDto
 {
+    public Guid ClinicId { get; set; }
     public DateTime NewAppointmentDate { get; set; }
     public TimeOnly NewStartTime { get; set; }
     public TimeOnly NewEndTime { get; set; }

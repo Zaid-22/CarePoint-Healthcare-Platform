@@ -229,8 +229,7 @@ public class AppointmentService : IAppointmentService
         if (!AppointmentStatusTransitions.CanPatientReschedule(appointment.Status))
             throw new BadRequestException("This appointment can no longer be rescheduled.");
 
-        if (appointment.ClinicId.HasValue)
-            await EnsureClinicCanHostAppointmentAsync(appointment.ClinicId.Value, appointment.DoctorProfileId);
+        await EnsureClinicCanHostAppointmentAsync(dto.ClinicId, appointment.DoctorProfileId);
 
         await EnsureSlotIsAvailableAsync(
             appointment.DoctorProfileId,
@@ -248,6 +247,7 @@ public class AppointmentService : IAppointmentService
         appointment.AppointmentDate = dto.NewAppointmentDate;
         appointment.StartTime = dto.NewStartTime;
         appointment.EndTime = dto.NewEndTime;
+        appointment.ClinicId = dto.ClinicId;
         appointment.Status = AppointmentStatus.Pending;
         await _context.SaveChangesAsync();
         await _notificationService.CreateNotificationAsync(

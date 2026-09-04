@@ -126,6 +126,7 @@ public class RescheduleAppointmentValidator : AbstractValidator<RescheduleAppoin
 {
     public RescheduleAppointmentValidator()
     {
+        RuleFor(x => x.ClinicId).NotEmpty();
         RuleFor(x => x.NewAppointmentDate).NotEmpty();
         RuleFor(x => x.NewStartTime).LessThan(x => x.NewEndTime)
             .WithMessage("Start time must be before end time.");

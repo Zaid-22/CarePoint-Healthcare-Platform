@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
-import type { AppointmentDto, ApiResponse, AvailableSlotDto } from '../../types';
+import type {
+  AppointmentDto,
+  ApiResponse,
+  AvailableSlotDto,
+  ClinicDto,
+  PublicDoctorDto,
+} from '../../types';
 import { BuildingIcon, CalendarIcon, ClockIcon } from '../../components/common/Icons';
 import PaginationControls from '../../components/common/PaginationControls';
 import { getClinicDateString } from '../../utils/clinicTime';
@@ -17,12 +23,17 @@ export default function MyAppointments() {
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState(getClinicDateString());
   const [rescheduleSlots, setRescheduleSlots] = useState<AvailableSlotDto[]>([]);
+  const [rescheduleClinics, setRescheduleClinics] = useState<ClinicDto[]>([]);
+  const [rescheduleClinicId, setRescheduleClinicId] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlotDto | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadingClinics, setLoadingClinics] = useState(false);
   const [savingReschedule, setSavingReschedule] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [rescheduleClinicError, setRescheduleClinicError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const slotRequest = useRef<AbortController | null>(null);
+  const clinicRequest = useRef<AbortController | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     try {
@@ -41,7 +52,10 @@ export default function MyAppointments() {
 
   useEffect(() => {
     fetchAppointments();
-    return () => slotRequest.current?.abort();
+    return () => {
+      slotRequest.current?.abort();
+      clinicRequest.current?.abort();
+    };
   }, [fetchAppointments]);
 
   const fetchRescheduleSlots = async (doctorId: string, date: string) => {
@@ -66,6 +80,38 @@ export default function MyAppointments() {
     }
   };
 
+  const fetchRescheduleClinics = async (appointment: AppointmentDto) => {
+    clinicRequest.current?.abort();
+    const controller = new AbortController();
+    clinicRequest.current = controller;
+    try {
+      setLoadingClinics(true);
+      const response = await api.get<ApiResponse<PublicDoctorDto>>(
+        `/doctors/${appointment.doctorProfileId}`,
+        { signal: controller.signal },
+      );
+      const clinics = response.data.data?.clinics ?? [];
+      setRescheduleClinics(clinics);
+      setRescheduleClinicError(null);
+      const currentClinicIsAvailable = clinics.some((clinic) => clinic.id === appointment.clinicId);
+      setRescheduleClinicId(
+        currentClinicIsAvailable
+          ? appointment.clinicId ?? ''
+          : clinics.length === 1 ? clinics[0].id : '',
+      );
+      if (clinics.length === 0)
+        setRescheduleClinicError('This doctor has no active clinic available for rescheduling.');
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.error('Failed to load clinic locations', error);
+      setRescheduleClinics([]);
+      setRescheduleClinicId('');
+      setRescheduleClinicError('Clinic locations could not be loaded. Please try again.');
+    } finally {
+      if (!controller.signal.aborted) setLoadingClinics(false);
+    }
+  };
+
   const openReschedule = (appointment: AppointmentDto) => {
     const today = getClinicDateString();
     const appointmentDate = appointment.appointmentDate.slice(0, 10);
@@ -74,25 +120,34 @@ export default function MyAppointments() {
     setRescheduleDate(initialDate);
     setSelectedSlot(null);
     setRescheduleSlots([]);
+    setRescheduleClinics([]);
+    setRescheduleClinicId('');
     setRescheduleError(null);
+    setRescheduleClinicError(null);
     setSuccessMessage(null);
     void fetchRescheduleSlots(appointment.doctorProfileId, initialDate);
+    void fetchRescheduleClinics(appointment);
   };
 
   const closeReschedule = () => {
     slotRequest.current?.abort();
+    clinicRequest.current?.abort();
     setReschedulingId(null);
     setSelectedSlot(null);
     setRescheduleSlots([]);
+    setRescheduleClinics([]);
+    setRescheduleClinicId('');
     setRescheduleError(null);
+    setRescheduleClinicError(null);
   };
 
   const handleReschedule = async (appointment: AppointmentDto) => {
-    if (!selectedSlot) return;
+    if (!selectedSlot || !rescheduleClinicId) return;
     try {
       setSavingReschedule(true);
       setRescheduleError(null);
       await api.put(`/appointments/${appointment.id}/reschedule`, {
+        clinicId: rescheduleClinicId,
         newAppointmentDate: rescheduleDate,
         newStartTime: selectedSlot.startTime,
         newEndTime: selectedSlot.endTime,
@@ -239,9 +294,35 @@ export default function MyAppointments() {
                 {isEditing && (
                   <div className="reschedule-editor">
                     <div className="reschedule-editor-copy">
-                      <h4>Choose a new available time</h4>
+                      <h4>Choose a new location and available time</h4>
                       <p>The appointment returns to pending status so the doctor can review the new request.</p>
                     </div>
+
+                    <div className="form-group" style={{ maxWidth: 360 }}>
+                      <label className="form-label" htmlFor={`reschedule-clinic-${appointment.id}`}>
+                        Clinic location
+                      </label>
+                      <select
+                        id={`reschedule-clinic-${appointment.id}`}
+                        className="form-input"
+                        value={rescheduleClinicId}
+                        disabled={loadingClinics}
+                        onChange={(event) => setRescheduleClinicId(event.target.value)}
+                      >
+                        <option value="">
+                          {loadingClinics ? 'Loading clinic locations…' : 'Choose the visit location'}
+                        </option>
+                        {rescheduleClinics.map((clinic) => (
+                          <option key={clinic.id} value={clinic.id}>
+                            {clinic.name}{clinic.city ? ` — ${clinic.city}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {rescheduleClinicError && (
+                      <div className="alert alert-error">{rescheduleClinicError}</div>
+                    )}
 
                     <div className="form-group" style={{ maxWidth: 280 }}>
                       <label className="form-label">New date</label>
@@ -294,7 +375,7 @@ export default function MyAppointments() {
                       <button
                         type="button"
                         className="btn btn-primary"
-                        disabled={!selectedSlot || savingReschedule}
+                        disabled={!selectedSlot || !rescheduleClinicId || savingReschedule}
                         onClick={() => handleReschedule(appointment)}
                       >
                         {savingReschedule ? 'Rescheduling…' : 'Confirm new time'}

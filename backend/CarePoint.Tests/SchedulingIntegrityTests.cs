@@ -75,11 +75,13 @@ public class SchedulingIntegrityTests
         var patient = new PatientProfile { UserId = "patient-user" };
         var requestedDoctor = ApprovedDoctor("requested-doctor");
         var otherDoctor = ApprovedDoctor("other-doctor");
+        var clinic = ActiveClinic("Rescheduled clinic");
         var newDate = new DateTime(2026, 8, 10);
         var appointment = new Appointment
         {
             PatientProfile = patient,
             DoctorProfile = requestedDoctor,
+            Clinic = clinic,
             AppointmentDate = new DateTime(2026, 8, 8),
             StartTime = new TimeOnly(9, 0),
             EndTime = new TimeOnly(9, 30),
@@ -90,9 +92,15 @@ public class SchedulingIntegrityTests
             patient,
             requestedDoctor,
             otherDoctor,
+            clinic,
             appointment,
             EnabledUser(requestedDoctor.UserId),
             EnabledUser(otherDoctor.UserId));
+        context.ClinicDoctors.Add(new ClinicDoctor
+        {
+            Clinic = clinic,
+            DoctorProfile = requestedDoctor
+        });
         context.DoctorAvailabilities.Add(new DoctorAvailability
         {
             DoctorProfile = requestedDoctor,
@@ -119,6 +127,7 @@ public class SchedulingIntegrityTests
             patient.UserId,
             new RescheduleAppointmentDto
             {
+                ClinicId = clinic.Id,
                 NewAppointmentDate = newDate,
                 NewStartTime = new TimeOnly(10, 0),
                 NewEndTime = new TimeOnly(10, 30)
@@ -147,6 +156,7 @@ public class SchedulingIntegrityTests
         {
             PatientProfile = patient,
             DoctorProfile = doctor,
+            Clinic = clinic,
             AppointmentDate = new DateTime(2026, 8, 8),
             StartTime = new TimeOnly(9, 0),
             EndTime = new TimeOnly(9, 30),
@@ -184,6 +194,7 @@ public class SchedulingIntegrityTests
             patient.UserId,
             new RescheduleAppointmentDto
             {
+                ClinicId = clinic.Id,
                 NewAppointmentDate = newDate,
                 NewStartTime = new TimeOnly(10, 0),
                 NewEndTime = new TimeOnly(10, 30)

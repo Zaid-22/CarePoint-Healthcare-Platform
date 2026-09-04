@@ -31,6 +31,20 @@ public class ClinicBookingTests
     }
 
     [Fact]
+    public void RescheduleContractRequiresClinicLocation()
+    {
+        var result = new RescheduleAppointmentValidator().Validate(new RescheduleAppointmentDto
+        {
+            NewAppointmentDate = new DateTime(2026, 8, 10),
+            NewStartTime = new TimeOnly(10, 0),
+            NewEndTime = new TimeOnly(10, 30)
+        });
+
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(RescheduleAppointmentDto.ClinicId));
+    }
+
+    [Fact]
     public async Task BookingRejectsDetachedAndInactiveClinicLocations()
     {
         await using var context = CreateContext();
