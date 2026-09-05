@@ -68,6 +68,11 @@ export default function AdminDashboard() {
     try {
       await api.put(`/doctors/${reviewing.doctor.id}/${reviewing.action}`, {
         notes: reviewNotes.trim(),
+        credentials: {
+          licenseNumber: reviewing.doctor.licenseNumber ?? null,
+          licensingAuthority: reviewing.doctor.licensingAuthority ?? null,
+          licenseExpiryDate: reviewing.doctor.licenseExpiryDate ?? null,
+        },
       });
       setActionSuccess(
         reviewing.action === 'approve'

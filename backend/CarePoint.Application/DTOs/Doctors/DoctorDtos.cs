@@ -76,6 +76,14 @@ public class UpdateDoctorDto
 public class ReviewDoctorCredentialsDto
 {
     public string Notes { get; set; } = string.Empty;
+    public DoctorCredentialSnapshotDto? Credentials { get; set; }
+}
+
+public class DoctorCredentialSnapshotDto
+{
+    public string? LicenseNumber { get; set; }
+    public string? LicensingAuthority { get; set; }
+    public DateTime? LicenseExpiryDate { get; set; }
 }
 
 public class DoctorAvailabilityDto

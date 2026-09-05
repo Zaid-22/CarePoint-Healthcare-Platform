@@ -424,9 +424,10 @@ public class DoctorService : IDoctorService
     public async Task<DoctorDto> ApproveAsync(
         Guid id, string reviewerUserId, ReviewDoctorCredentialsDto dto)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
+        EnsureReviewedCredentialsMatch(doctor, dto);
         if (string.IsNullOrWhiteSpace(doctor.LicenseNumber) ||
             string.IsNullOrWhiteSpace(doctor.LicensingAuthority) ||
             !doctor.LicenseExpiryDate.HasValue ||
@@ -457,9 +458,10 @@ public class DoctorService : IDoctorService
     public async Task<DoctorDto> RejectAsync(
         Guid id, string reviewerUserId, ReviewDoctorCredentialsDto dto)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles.FindAsync(id)
             ?? throw new NotFoundException("Doctor", id);
+        EnsureReviewedCredentialsMatch(doctor, dto);
         if (string.IsNullOrWhiteSpace(dto.Notes))
             throw new BadRequestException("Credential review notes are required.");
         doctor.ApprovalStatus = DoctorApprovalStatus.Rejected;
@@ -818,6 +820,16 @@ public class DoctorService : IDoctorService
                 (!excludedDoctorId.HasValue || profile.Id != excludedDoctorId.Value));
         if (duplicate)
             throw new ConflictException("This professional license is already registered.");
+    }
+
+    private static void EnsureReviewedCredentialsMatch(DoctorProfile doctor, ReviewDoctorCredentialsDto dto)
+    {
+        var reviewed = dto.Credentials
+            ?? throw new BadRequestException("The reviewed credentials must be included.");
+        if (!string.Equals(doctor.LicenseNumber, reviewed.LicenseNumber, StringComparison.Ordinal) ||
+            !string.Equals(doctor.LicensingAuthority, reviewed.LicensingAuthority, StringComparison.Ordinal) ||
+            doctor.LicenseExpiryDate?.Date != reviewed.LicenseExpiryDate?.Date)
+            throw new ConflictException("These credentials have changed. Reload the doctor and review the current credentials.");
     }
 
     private void AddCredentialReview(

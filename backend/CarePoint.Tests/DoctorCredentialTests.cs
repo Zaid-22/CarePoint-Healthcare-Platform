@@ -67,7 +67,11 @@ public class DoctorCredentialTests
         var approved = await service.ApproveAsync(
             doctor.Id,
             "reviewing-admin",
-            new ReviewDoctorCredentialsDto { Notes = "  License verified with issuing authority.  " });
+            new ReviewDoctorCredentialsDto
+            {
+                Notes = "  License verified with issuing authority.  ",
+                Credentials = Snapshot(doctor)
+            });
 
         Assert.Equal(DoctorApprovalStatus.Approved, approved.ApprovalStatus);
         Assert.Equal("reviewing-admin", approved.CredentialsReviewedByUserId);
@@ -122,6 +126,60 @@ public class DoctorCredentialTests
                 EndTime = new TimeOnly(9, 30)
             }));
     }
+
+    [Theory]
+    [InlineData("number")]
+    [InlineData("authority")]
+    [InlineData("expiry")]
+    public async Task StaleCredentialReviewCannotApproveOrRejectReplacementCredentials(string changedField)
+    {
+        using var provider = CreateProvider();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = CreateUser("stale-review@example.com");
+        await userManager.CreateAsync(user);
+        var doctor = ApprovedDoctor(user.Id, new DateTime(2027, 8, 1), null);
+        doctor.ApprovalStatus = DoctorApprovalStatus.Pending;
+        context.DoctorProfiles.Add(doctor);
+        await context.SaveChangesAsync();
+        var request = new ReviewDoctorCredentialsDto { Notes = "Verified the displayed license", Credentials = Snapshot(doctor) };
+        switch (changedField)
+        {
+            case "number": doctor.LicenseNumber = "Replacement number"; break;
+            case "authority": doctor.LicensingAuthority = "Replacement authority"; break;
+            case "expiry": doctor.LicenseExpiryDate = new DateTime(2028, 8, 1); break;
+        }
+        await context.SaveChangesAsync();
+        var service = new DoctorService(context, userManager, new RecordingNotificationService(),
+            new FixedClinicClock(), null!, NullLogger<DoctorService>.Instance);
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.ApproveAsync(doctor.Id, "admin", request));
+        await Assert.ThrowsAsync<ConflictException>(() => service.RejectAsync(doctor.Id, "admin", request));
+
+        Assert.Equal(DoctorApprovalStatus.Pending, doctor.ApprovalStatus);
+        Assert.Empty(context.DoctorCredentialReviews);
+        Assert.Null(doctor.CredentialsReviewedAt);
+    }
+
+    [Fact]
+    public void CredentialReviewRequiresTheDisplayedSnapshot()
+    {
+        var validator = new ReviewDoctorCredentialsValidator();
+        Assert.False(validator.Validate(new ReviewDoctorCredentialsDto { Notes = "Verified" }).IsValid);
+        // Incomplete legacy credentials must still be reviewable for rejection.
+        Assert.True(validator.Validate(new ReviewDoctorCredentialsDto
+        {
+            Notes = "Missing license", Credentials = new DoctorCredentialSnapshotDto()
+        }).IsValid);
+    }
+
+    private static DoctorCredentialSnapshotDto Snapshot(DoctorProfile doctor) => new()
+    {
+        LicenseNumber = doctor.LicenseNumber,
+        LicensingAuthority = doctor.LicensingAuthority,
+        LicenseExpiryDate = doctor.LicenseExpiryDate
+    };
 
     private static ApplicationUser CreateUser(string email) => new()
     {

@@ -178,8 +178,16 @@ public class UpdateDoctorValidator : AbstractValidator<UpdateDoctorDto>
 
 public class ReviewDoctorCredentialsValidator : AbstractValidator<ReviewDoctorCredentialsDto>
 {
-    public ReviewDoctorCredentialsValidator() =>
+    public ReviewDoctorCredentialsValidator()
+    {
         RuleFor(x => x.Notes).NotEmpty().MaximumLength(1000);
+        RuleFor(x => x.Credentials).NotNull();
+        When(x => x.Credentials != null, () =>
+        {
+            RuleFor(x => x.Credentials!.LicenseNumber).MaximumLength(100);
+            RuleFor(x => x.Credentials!.LicensingAuthority).MaximumLength(200);
+        });
+    }
 }
 
 public class CreateAvailabilityValidator : AbstractValidator<CreateAvailabilityDto>
