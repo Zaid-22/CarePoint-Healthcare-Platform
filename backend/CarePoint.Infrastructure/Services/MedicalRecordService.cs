@@ -7,6 +7,7 @@ using CarePoint.Infrastructure.Data;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
 using CarePoint.Domain.Enums;
+using System.Data;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -114,6 +115,7 @@ public class MedicalRecordService : IMedicalRecordService
 
     public async Task<MedicalRecordDto> CreateAsync(string userId, CreateMedicalRecordDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
             ?? throw new ForbiddenException("Only doctors can create medical records.");
 
@@ -137,7 +139,9 @@ public class MedicalRecordService : IMedicalRecordService
 
         _context.MedicalRecords.Add(record);
         await _context.SaveChangesAsync();
-        return await GetByIdAsync(record.Id, userId, "Doctor");
+        var result = await GetByIdAsync(record.Id, userId, "Doctor");
+        await transaction.CommitAsync();
+        return result;
     }
 
     public async Task<MedicalRecordDto> UpdateAsync(Guid id, string userId, UpdateMedicalRecordDto dto)

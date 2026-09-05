@@ -7,6 +7,7 @@ using CarePoint.Infrastructure.Data;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Domain.Common;
 using CarePoint.Domain.Enums;
+using System.Data;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -126,6 +127,7 @@ public class PrescriptionService : IPrescriptionService
 
     public async Task<PrescriptionDto> CreateAsync(string userId, CreatePrescriptionDto dto)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
             ?? throw new ForbiddenException("Only doctors can create prescriptions.");
 
@@ -156,7 +158,9 @@ public class PrescriptionService : IPrescriptionService
 
         _context.Prescriptions.Add(rx);
         await _context.SaveChangesAsync();
-        return await MapToDtoAsync(rx);
+        var result = await MapToDtoAsync(rx);
+        await transaction.CommitAsync();
+        return result;
     }
 
     public async Task<PrescriptionDto> UpdateAsync(Guid id, string userId, UpdatePrescriptionDto dto)

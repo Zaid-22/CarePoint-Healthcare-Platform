@@ -229,6 +229,11 @@ public class AppointmentService : IAppointmentService
         if (!AppointmentStatusTransitions.CanPatientReschedule(appointment.Status))
             throw new BadRequestException("This appointment can no longer be rescheduled.");
 
+        if (await _context.MedicalRecords.AnyAsync(record => record.AppointmentId == id) ||
+            await _context.Prescriptions.AnyAsync(prescription => prescription.AppointmentId == id))
+            throw new ConflictException(
+                "This appointment already has clinical records. Book a new appointment to preserve the original encounter.");
+
         await EnsureClinicCanHostAppointmentAsync(dto.ClinicId, appointment.DoctorProfileId);
 
         await EnsureSlotIsAvailableAsync(
