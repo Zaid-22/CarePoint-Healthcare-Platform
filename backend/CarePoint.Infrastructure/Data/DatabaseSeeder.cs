@@ -118,12 +118,11 @@ public static class DatabaseSeeder
             }
             else
             {
-                // Ensure active and description updated if missing
+                // Fill missing reference text without overriding administrator decisions.
                 if (string.IsNullOrEmpty(existing.Description) && !string.IsNullOrEmpty(spec.Description))
                 {
                     existing.Description = spec.Description;
                 }
-                existing.IsActive = true;
             }
             specialtyMap[spec.Name] = existing;
         }
