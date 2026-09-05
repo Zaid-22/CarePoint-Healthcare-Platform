@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import type { AppointmentDto, MedicalRecordDto, ApiResponse } from '../../types';
 import { FileTextIcon } from '../../components/common/Icons';
@@ -6,12 +6,16 @@ import PaginationControls from '../../components/common/PaginationControls';
 import MedicalDocumentsPanel from '../../components/common/MedicalDocumentsPanel';
 import DoctorPrescriptionPanel from '../../components/medical/DoctorPrescriptionPanel';
 
+import DoctorMedicalRecordForm from '../../components/medical/DoctorMedicalRecordForm';
+import { createLatestRequestGuard } from '../../utils/latestRequest';
+
+type ConsultationModal = 'record' | 'prescription' | 'history' | 'documents';
 const PAGE_SIZE = 20;
 
 export default function DoctorAppointments() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<'record' | 'prescription' | 'history' | 'documents' | null>(null);
+  const [activeModal, setActiveModal] = useState<ConsultationModal | null>(null);
   const [selectedApp, setSelectedApp] = useState<AppointmentDto | null>(null);
   const [skip, setSkip] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -20,10 +24,31 @@ export default function DoctorAppointments() {
   const [patientHistory, setPatientHistory] = useState<MedicalRecordDto[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Form states
-  const [diagnosis, setDiagnosis] = useState('');
-  const [treatment, setTreatment] = useState('');
-  const [notes, setNotes] = useState('');
+  const historyRequest = useRef<AbortController | null>(null);
+  const historyGuard = useRef(createLatestRequestGuard());
+
+  useEffect(() => () => {
+    historyRequest.current?.abort();
+    historyGuard.current.invalidate();
+  }, []);
+
+  const closeModal = () => {
+    historyRequest.current?.abort();
+    historyGuard.current.invalidate();
+    setActiveModal(null);
+    setSelectedApp(null);
+    setPatientHistory([]);
+    setLoadingHistory(false);
+  };
+
+  const openModal = (app: AppointmentDto, modal: ConsultationModal) => {
+    historyRequest.current?.abort();
+    historyGuard.current.invalidate();
+    setPatientHistory([]);
+    setLoadingHistory(false);
+    setSelectedApp(app);
+    setActiveModal(modal);
+  };
 
   const fetchAppointments = useCallback(async () => {
     try {
@@ -44,17 +69,22 @@ export default function DoctorAppointments() {
   }, [fetchAppointments]);
 
   const openHistoryModal = async (app: AppointmentDto) => {
-    setSelectedApp(app);
-    setActiveModal('history');
+    openModal(app, 'history');
+    const controller = new AbortController();
+    historyRequest.current = controller;
+    const version = historyGuard.current.begin();
     setLoadingHistory(true);
     try {
-      const res = await api.get<ApiResponse<MedicalRecordDto[]>>(`/medicalrecords/patient/${app.patientProfileId}`);
-      setPatientHistory(res.data.data || []);
+      const res = await api.get<ApiResponse<MedicalRecordDto[]>>(
+        `/medicalrecords/patient/${app.patientProfileId}`, { signal: controller.signal },
+      );
+      if (historyGuard.current.isCurrent(version)) setPatientHistory(res.data.data || []);
     } catch (e) {
+      if (controller.signal.aborted || !historyGuard.current.isCurrent(version)) return;
       console.error('Failed to fetch patient history', e);
       setPatientHistory([]);
     } finally {
-      setLoadingHistory(false);
+      if (historyGuard.current.isCurrent(version)) setLoadingHistory(false);
     }
   };
 
@@ -64,25 +94,6 @@ export default function DoctorAppointments() {
       fetchAppointments();
     } catch {
       alert('Failed to update appointment status');
-    }
-  };
-
-  const handleCreateRecord = async () => {
-    if (!selectedApp) return;
-    try {
-      await api.post('/medicalrecords', {
-        appointmentId: selectedApp.id,
-        diagnosis,
-        treatment,
-        notes,
-      });
-      alert('Medical record saved successfully!');
-      setActiveModal(null);
-      setDiagnosis('');
-      setTreatment('');
-      setNotes('');
-    } catch {
-      alert('Failed to create medical record.');
     }
   };
 
@@ -147,7 +158,7 @@ export default function DoctorAppointments() {
                   </button>
                   <button
                     className="btn btn-ghost"
-                    onClick={() => { setSelectedApp(app); setActiveModal('documents'); }}
+                    onClick={() => openModal(app, 'documents')}
                     style={{ fontSize: '0.875rem', gap: 6 }}
                   >
                     <FileTextIcon size={16} /> Documents
@@ -160,7 +171,7 @@ export default function DoctorAppointments() {
                   )}
                   {app.status === 1 && (
                     <>
-                      <button className="btn btn-secondary" onClick={() => { setSelectedApp(app); setActiveModal('record'); }}>
+                      <button className="btn btn-secondary" onClick={() => openModal(app, 'record')}>
                         + Add Record
                       </button>
                       <button className="btn btn-primary" onClick={() => handleUpdateStatus(app.id, 4)}>
@@ -169,7 +180,7 @@ export default function DoctorAppointments() {
                     </>
                   )}
                   {[1, 3, 4].includes(app.status) && (
-                    <button className="btn btn-secondary" onClick={() => { setSelectedApp(app); setActiveModal('prescription'); }}>
+                    <button className="btn btn-secondary" onClick={() => openModal(app, 'prescription')}>
                       Prescriptions
                     </button>
                   )}
@@ -202,38 +213,23 @@ export default function DoctorAppointments() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' }}>
               <h2 id="doctor-appointment-modal-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700 }}>
                 {activeModal === 'record'
-                  ? 'New Medical Record'
+                  ? `New Medical Record: ${selectedApp.patientName}`
                   : activeModal === 'prescription'
                   ? 'Issue Prescription'
                   : activeModal === 'documents'
                   ? `Clinical Documents: ${selectedApp.patientName}`
                   : `Medical History: ${selectedApp.patientName}`}
               </h2>
-              <button className="btn btn-ghost" aria-label="Close consultation dialog" onClick={() => setActiveModal(null)}>✕</button>
+              <button className="btn btn-ghost" aria-label="Close consultation dialog" onClick={closeModal}>✕</button>
             </div>
 
             {activeModal === 'record' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="form-group">
-                  <label className="form-label">Diagnosis</label>
-                  <input className="form-input" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="e.g. Acute Rhinitis" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Treatment Plan</label>
-                  <input className="form-input" value={treatment} onChange={(e) => setTreatment(e.target.value)} placeholder="e.g. Hydration, OTC antihistamines" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Clinical Notes</label>
-                  <textarea className="form-input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional clinical details…" />
-                </div>
-                <button className="btn btn-primary" onClick={handleCreateRecord} style={{ marginTop: 8 }}>
-                  Save Record
-                </button>
-              </div>
+              <DoctorMedicalRecordForm key={selectedApp.id} appointment={selectedApp} onSaved={closeModal} />
             ) : activeModal === 'prescription' ? (
-              <DoctorPrescriptionPanel appointment={selectedApp} />
+              <DoctorPrescriptionPanel key={selectedApp.id} appointment={selectedApp} />
             ) : activeModal === 'documents' ? (
               <MedicalDocumentsPanel
+                key={selectedApp.id}
                 patientProfileId={selectedApp.patientProfileId}
                 appointmentId={selectedApp.id}
                 compact
