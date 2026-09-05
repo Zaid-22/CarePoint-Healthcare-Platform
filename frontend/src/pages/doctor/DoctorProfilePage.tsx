@@ -191,7 +191,9 @@ export default function DoctorProfilePage() {
       setSuccessMsg(null);
       const form = new FormData();
       form.append('file', file);
-      const response = await api.post<ApiResponse<DoctorDto>>('/doctors/me/avatar', form);
+      const response = await api.post<ApiResponse<DoctorDto>>('/doctors/me/avatar', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       if (response.data.data) {
         setProfile(response.data.data);
         setProfilePictureUrl(response.data.data.profilePictureUrl || '');
