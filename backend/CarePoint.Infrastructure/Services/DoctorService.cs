@@ -692,24 +692,25 @@ public class DoctorService : IDoctorService
             .ToListAsync();
 
         var slots = new List<AvailableSlotDto>();
+        var localNow = _clinicClock.LocalNow;
         foreach (var schedule in schedules)
         {
-            var current = schedule.StartTime;
-            while (current.AddMinutes(schedule.SlotDurationMinutes) <= schedule.EndTime)
+            var duration = TimeSpan.FromMinutes(schedule.SlotDurationMinutes);
+            var end = schedule.EndTime.ToTimeSpan();
+            for (var current = schedule.StartTime.ToTimeSpan(); current + duration <= end; current += duration)
             {
-                var slotEnd = current.AddMinutes(schedule.SlotDurationMinutes);
-                var isBooked = bookedSlots.Any(b => b.StartTime < slotEnd && b.EndTime > current);
-                var isElapsed = AppointmentSchedulingRules.IsElapsed(_clinicClock.LocalNow, date, current);
+                var slotStart = TimeOnly.FromTimeSpan(current);
+                var slotEnd = TimeOnly.FromTimeSpan(current + duration);
+                var isBooked = bookedSlots.Any(b => b.StartTime < slotEnd && b.EndTime > slotStart);
+                var isElapsed = AppointmentSchedulingRules.IsElapsed(localNow, date, slotStart);
 
                 slots.Add(new AvailableSlotDto
                 {
                     Date = date.Date,
-                    StartTime = current,
+                    StartTime = slotStart,
                     EndTime = slotEnd,
                     IsAvailable = !isBooked && !isElapsed
                 });
-
-                current = slotEnd;
             }
         }
 
