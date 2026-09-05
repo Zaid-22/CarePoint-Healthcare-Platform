@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api, { requestSessionRefresh, setAccessToken } from '../../api/client';
+import api, { requestSessionRefresh, setAuthSession, clearAuthSession } from '../../api/client';
 import type { AuthUser, AuthResponse, LoginRequest, RegisterRequest, ApiResponse } from '../../types';
 
 interface AuthState {
@@ -20,7 +20,7 @@ export const initializeSession = createAsyncThunk<
     try {
       return await requestSessionRefresh();
     } catch {
-      setAccessToken(null);
+      clearAuthSession();
       return rejectWithValue('No active session');
     }
   },
@@ -37,7 +37,7 @@ export const login = createAsyncThunk<AuthResponse, LoginRequest, { rejectValue:
   async (credentials, { rejectWithValue }) => {
     try {
       const { data } = await api.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
-      setAccessToken(data.data.accessToken);
+      setAuthSession(data.data, true);
       return data.data;
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || 'Login failed');
@@ -50,7 +50,7 @@ export const register = createAsyncThunk<AuthResponse, RegisterRequest, { reject
   async (payload, { rejectWithValue }) => {
     try {
       const { data } = await api.post<ApiResponse<AuthResponse>>('/auth/register', payload);
-      setAccessToken(data.data.accessToken);
+      setAuthSession(data.data, true);
       return data.data;
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || 'Registration failed');
@@ -64,7 +64,7 @@ export const logoutFromServer = createAsyncThunk<void, void>(
     try {
       await api.post('/auth/logout');
     } finally {
-      setAccessToken(null);
+      clearAuthSession(true);
       dispatch(logout());
     }
   },
