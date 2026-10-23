@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.DTOs.Doctors;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Enums;
 using CarePoint.Domain.Exceptions;
 using Microsoft.AspNetCore.RateLimiting;
@@ -32,7 +33,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<PublicDoctorDto>>.PagedSuccessResponse(result));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpGet("admin/all")]
     [HttpGet("all")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DoctorDto>>>> GetAllForAdmin(
@@ -43,7 +44,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<DoctorDto>>.PagedSuccessResponse(result));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpGet("admin/summary")]
     public async Task<ActionResult<ApiResponse<DoctorAdminSummaryDto>>> GetAdminSummary() =>
         Ok(ApiResponse<DoctorAdminSummaryDto>.SuccessResponse(await _doctorService.GetAdminSummaryAsync()));
@@ -61,13 +62,13 @@ public class DoctorsController : ControllerBase
         var userId = User.Identity?.IsAuthenticated == true
             ? User.FindFirstValue(ClaimTypes.NameIdentifier)
             : null;
-        var role = User.IsInRole("Admin") ? "Admin" : User.IsInRole("Doctor") ? "Doctor" : null;
+        var role = User.IsInRole(Roles.Admin) ? Roles.Admin : User.IsInRole(Roles.Doctor) ? Roles.Doctor : null;
         var result = await _doctorService.GetProfileImageAsync(id, userId, role);
         Response.Headers.CacheControl = "no-store";
         return File(result.Content, result.ContentType);
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpGet("me")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> GetMyProfile()
     {
@@ -76,7 +77,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPut("me")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> UpdateMyProfile([FromBody] UpdateDoctorDto dto)
     {
@@ -85,7 +86,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [EnableRateLimiting("document-upload")]
     [RequestSizeLimit(MaxProfileImageBytes + 64 * 1024)]
     [HttpPost("me/avatar")]
@@ -108,7 +109,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Profile image uploaded."));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPost("profile")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> CreateProfile([FromBody] CreateDoctorDto dto)
     {
@@ -117,7 +118,7 @@ public class DoctorsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<DoctorDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> Update(Guid id, [FromBody] UpdateDoctorDto dto)
     {
@@ -126,7 +127,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPut("{id:guid}/approve")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> Approve(
         Guid id, [FromBody] ReviewDoctorCredentialsDto dto)
@@ -136,7 +137,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Doctor approved."));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPut("{id:guid}/reject")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> Reject(
         Guid id, [FromBody] ReviewDoctorCredentialsDto dto)
@@ -146,7 +147,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorDto>.SuccessResponse(result, "Doctor rejected."));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPut("{id:guid}/clinics")]
     public async Task<ActionResult<ApiResponse<DoctorDto>>> AssignClinics(
         Guid id, [FromBody] AssignDoctorClinicsDto dto)
@@ -163,12 +164,12 @@ public class DoctorsController : ControllerBase
         var userId = User.Identity?.IsAuthenticated == true
             ? User.FindFirstValue(ClaimTypes.NameIdentifier)
             : null;
-        var role = User.IsInRole("Admin") ? "Admin" : User.IsInRole("Doctor") ? "Doctor" : null;
+        var role = User.IsInRole(Roles.Admin) ? Roles.Admin : User.IsInRole(Roles.Doctor) ? Roles.Doctor : null;
         var result = await _doctorService.GetAvailabilityAsync(doctorId, userId, role);
         return Ok(ApiResponse<IReadOnlyList<DoctorAvailabilityDto>>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPost("{doctorId:guid}/availability")]
     public async Task<ActionResult<ApiResponse<DoctorAvailabilityDto>>> AddAvailability(
         Guid doctorId, [FromBody] CreateAvailabilityDto dto)
@@ -178,7 +179,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorAvailabilityDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPut("{doctorId:guid}/availability/{slotId:guid}")]
     public async Task<ActionResult<ApiResponse<DoctorAvailabilityDto>>> UpdateAvailability(
         Guid doctorId, Guid slotId, [FromBody] CreateAvailabilityDto dto)
@@ -188,7 +189,7 @@ public class DoctorsController : ControllerBase
         return Ok(ApiResponse<DoctorAvailabilityDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpDelete("{doctorId:guid}/availability/{slotId:guid}")]
     public async Task<ActionResult<ApiResponse<string>>> DeleteAvailability(Guid doctorId, Guid slotId)
     {

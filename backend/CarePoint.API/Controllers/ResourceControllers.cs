@@ -5,6 +5,7 @@ using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.DTOs.Doctors;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 
 namespace CarePoint.API.Controllers;
 
@@ -36,7 +37,7 @@ public class MedicalRecordsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordDto>>.PagedSuccessResponse(page));
     }
 
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     [HttpGet("my-history")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MedicalRecordDto>>>> GetMyHistory(
         [FromQuery] string? search = null,
@@ -56,7 +57,7 @@ public class MedicalRecordsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<MedicalRecordRevisionDto>>.SuccessResponse(revisions));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<MedicalRecordDto>>> Create([FromBody] CreateMedicalRecordDto dto)
     {
@@ -65,7 +66,7 @@ public class MedicalRecordsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<MedicalRecordDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<MedicalRecordDto>>> Update(Guid id, [FromBody] UpdateMedicalRecordDto dto)
     {
@@ -101,7 +102,7 @@ public class PrescriptionsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<PrescriptionDto>>.PagedSuccessResponse(page));
     }
 
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     [HttpGet("my-prescriptions")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PrescriptionDto>>>> GetMyPrescriptions(
         [FromQuery] string? search = null,
@@ -121,7 +122,7 @@ public class PrescriptionsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<PrescriptionRevisionDto>>.SuccessResponse(revisions));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<PrescriptionDto>>> Create([FromBody] CreatePrescriptionDto dto)
     {
@@ -130,7 +131,7 @@ public class PrescriptionsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<PrescriptionDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = Roles.Doctor)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PrescriptionDto>>> Update(
         Guid id, [FromBody] UpdatePrescriptionDto dto)
@@ -194,7 +195,7 @@ public class SpecialtiesController : ControllerBase
         return Ok(ApiResponse<SpecialtyDto>.SuccessResponse(await _service.GetByIdAsync(id)));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<SpecialtyDto>>> Create([FromBody] CreateSpecialtyDto dto)
     {
@@ -202,14 +203,14 @@ public class SpecialtiesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<SpecialtyDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<SpecialtyDto>>> Update(Guid id, [FromBody] CreateSpecialtyDto dto)
     {
         return Ok(ApiResponse<SpecialtyDto>.SuccessResponse(await _service.UpdateAsync(id, dto)));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<string>>> Delete(Guid id)
     {
@@ -217,7 +218,7 @@ public class SpecialtiesController : ControllerBase
         return Ok(ApiResponse<string>.SuccessResponse("Specialty deactivated successfully."));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPost("seed")]
     public async Task<ActionResult<ApiResponse<string>>> SeedSpecialties()
     {
@@ -246,7 +247,7 @@ public class ClinicsController : ControllerBase
         return Ok(ApiResponse<ClinicDto>.SuccessResponse(await _service.GetByIdAsync(id)));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<ClinicDto>>> Create([FromBody] CreateClinicDto dto)
     {
@@ -254,7 +255,7 @@ public class ClinicsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<ClinicDto>.SuccessResponse(result));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<ClinicDto>>> Update(
         Guid id, [FromBody] CreateClinicDto dto)
@@ -262,7 +263,7 @@ public class ClinicsController : ControllerBase
         return Ok(ApiResponse<ClinicDto>.SuccessResponse(await _service.UpdateAsync(id, dto)));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<string>>> Delete(Guid id)
     {

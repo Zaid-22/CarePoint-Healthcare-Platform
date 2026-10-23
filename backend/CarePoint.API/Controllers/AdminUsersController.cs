@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CarePoint.Application.DTOs.Admin;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ namespace CarePoint.API.Controllers;
 
 [ApiController]
 [Route("api/admin/users")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = Roles.Admin)]
 public sealed class AdminUsersController : ControllerBase
 {
     private readonly IAdminUserService _service;

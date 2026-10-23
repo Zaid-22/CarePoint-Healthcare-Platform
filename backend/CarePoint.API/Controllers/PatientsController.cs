@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.DTOs.Patients;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 
 namespace CarePoint.API.Controllers;
 
@@ -19,7 +20,7 @@ public class PatientsController : ControllerBase
         _patientService = patientService;
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PatientDto>>>> GetAll(
         [FromQuery] string? search = null,
@@ -39,7 +40,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet("me")]
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     public async Task<ActionResult<ApiResponse<PatientDto>>> GetMyProfile()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -48,7 +49,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("me")]
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     public async Task<ActionResult<ApiResponse<PatientDto>>> UpdateMyProfile([FromBody] UpdatePatientDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -57,7 +58,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     public async Task<ActionResult<ApiResponse<PatientDto>>> Update(Guid id, [FromBody] UpdatePatientDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;

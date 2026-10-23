@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using CarePoint.Application.DTOs.Appointments;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 
 namespace CarePoint.API.Controllers;
 
@@ -50,7 +51,7 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     public async Task<ActionResult<ApiResponse<AppointmentDto>>> Create([FromBody] CreateAppointmentDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -59,7 +60,7 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/status")]
-    [Authorize(Roles = "Doctor,Admin")]
+    [Authorize(Roles = $"{Roles.Doctor},{Roles.Admin}")]
     public async Task<ActionResult<ApiResponse<AppointmentDto>>> UpdateStatus(Guid id, [FromBody] UpdateAppointmentStatusDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -69,7 +70,7 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/reschedule")]
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
     public async Task<ActionResult<ApiResponse<AppointmentDto>>> Reschedule(Guid id, [FromBody] RescheduleAppointmentDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;

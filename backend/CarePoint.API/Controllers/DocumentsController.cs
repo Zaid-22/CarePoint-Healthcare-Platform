@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -88,9 +89,9 @@ public class DocumentsController : ControllerBase
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? throw new ForbiddenException();
 
-    private string Role => User.IsInRole("Admin") ? "Admin" :
-        User.IsInRole("Doctor") ? "Doctor" :
-        User.IsInRole("Patient") ? "Patient" : throw new ForbiddenException();
+    private string Role => User.IsInRole(Roles.Admin) ? Roles.Admin :
+        User.IsInRole(Roles.Doctor) ? Roles.Doctor :
+        User.IsInRole(Roles.Patient) ? Roles.Patient : throw new ForbiddenException();
 
     private static async Task EnsureFileSignatureAsync(Stream stream, string extension)
     {
