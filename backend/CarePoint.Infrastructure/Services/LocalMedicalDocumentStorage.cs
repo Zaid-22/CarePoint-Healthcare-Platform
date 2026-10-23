@@ -1,5 +1,6 @@
 using CarePoint.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -7,13 +8,13 @@ public sealed class LocalMedicalDocumentStorage : IMedicalDocumentStorage
 {
     private readonly string _rootPath;
 
-    public LocalMedicalDocumentStorage(IConfiguration configuration)
+    public LocalMedicalDocumentStorage(IConfiguration configuration, IHostEnvironment? environment = null)
     {
         var configuredPath = configuration["MedicalDocuments:StoragePath"] ??
             Path.Combine("App_Data", "medical-documents");
         _rootPath = Path.GetFullPath(Path.IsPathRooted(configuredPath)
             ? configuredPath
-            : Path.Combine(AppContext.BaseDirectory, configuredPath));
+            : Path.Combine(environment?.ContentRootPath ?? AppContext.BaseDirectory, configuredPath));
         Directory.CreateDirectory(_rootPath);
     }
 

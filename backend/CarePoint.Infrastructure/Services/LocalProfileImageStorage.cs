@@ -1,5 +1,6 @@
 using CarePoint.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace CarePoint.Infrastructure.Services;
 
@@ -7,13 +8,13 @@ public sealed class LocalProfileImageStorage : IProfileImageStorage
 {
     private readonly string _rootPath;
 
-    public LocalProfileImageStorage(IConfiguration configuration)
+    public LocalProfileImageStorage(IConfiguration configuration, IHostEnvironment? environment = null)
     {
         var configuredPath = configuration["ProfileImages:StoragePath"] ??
             Path.Combine("App_Data", "profile-images");
         _rootPath = Path.GetFullPath(Path.IsPathRooted(configuredPath)
             ? configuredPath
-            : Path.Combine(AppContext.BaseDirectory, configuredPath));
+            : Path.Combine(environment?.ContentRootPath ?? AppContext.BaseDirectory, configuredPath));
         Directory.CreateDirectory(_rootPath);
     }
 
