@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
 using CarePoint.Infrastructure.Identity;
@@ -20,7 +21,7 @@ public static class DatabaseSeeder
         var dbContext = serviceProvider.GetRequiredService<ApplicationDbContext>();
 
         // 1. Seed roles
-        string[] roles = { "Admin", "Doctor", "Patient" };
+        string[] roles = { Roles.Admin, Roles.Doctor, Roles.Patient };
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
@@ -31,7 +32,6 @@ public static class DatabaseSeeder
 
         // Reference data is safe to seed in every environment.
         var seededSpecialties = await SeedSpecialtiesAsync(dbContext);
-        var seededClinics = await SeedClinicsAsync(dbContext);
 
         // Demo users are opt-in and restricted to development. Their password is never stored in source control.
         if (!seedDemoData)
@@ -59,9 +59,12 @@ public static class DatabaseSeeder
             var result = await userManager.CreateAsync(adminUser, demoPassword);
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
+                await userManager.AddToRoleAsync(adminUser, Roles.Admin);
             }
         }
+
+        // Clinics are demo data — don't seed them in production.
+        var seededClinics = await SeedClinicsAsync(dbContext);
 
         // 5. Seed Sample Doctors with Specialties and Availability
         await SeedDoctorsAsync(
@@ -261,7 +264,7 @@ public static class DatabaseSeeder
                 var createRes = await userManager.CreateAsync(user, demoPassword);
                 if (createRes.Succeeded)
                 {
-                    await userManager.AddToRoleAsync(user, "Doctor");
+                    await userManager.AddToRoleAsync(user, Roles.Doctor);
                 }
             }
 
@@ -381,7 +384,7 @@ public static class DatabaseSeeder
             var createRes = await userManager.CreateAsync(patientUser, demoPassword);
             if (createRes.Succeeded)
             {
-                await userManager.AddToRoleAsync(patientUser, "Patient");
+                await userManager.AddToRoleAsync(patientUser, Roles.Patient);
 
                 var patientProfile = new PatientProfile
                 {

@@ -93,6 +93,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
             throw new InvalidOperationException($"ForwardedHeaders:KnownProxies contains invalid IP '{configuredProxy}'.");
         options.KnownProxies.Add(address);
     }
+    foreach (var network in builder.Configuration
+                 .GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? Array.Empty<string>())
+    {
+        var parts = network.Split('/');
+        if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var prefix) || !int.TryParse(parts[1], out var prefixLength))
+            throw new InvalidOperationException($"ForwardedHeaders:KnownNetworks contains invalid CIDR '{network}'. Expected format: '172.16.0.0/12'.");
+        options.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
+    }
 });
 builder.Services.AddRateLimiter(options =>
 {
@@ -138,6 +146,22 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new() { Title = "CarePoint API", Version = "v1" });
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.ParameterLocation.Header,
+        Description = "Enter your JWT token."
+    });
+    options.AddSecurityRequirement(_ => new Microsoft.OpenApi.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
+            new List<string>()
+        }
+    });
 });
 
 var app = builder.Build();

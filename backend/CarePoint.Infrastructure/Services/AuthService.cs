@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using CarePoint.Application.DTOs.Auth;
 using CarePoint.Application.Interfaces;
 using CarePoint.Application.Configuration;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
@@ -53,7 +54,7 @@ public class AuthService : IAuthService
 
         string? licenseNumber = null;
         string? licensingAuthority = null;
-        if (dto.Role == "Doctor")
+        if (dto.Role == Roles.Doctor)
         {
             licenseNumber = dto.LicenseNumber?.Trim();
             licensingAuthority = dto.LicensingAuthority?.Trim();
@@ -72,7 +73,7 @@ public class AuthService : IAuthService
         }
 
         List<Guid>? validSpecialtyIds = null;
-        if (dto.Role == "Doctor" && dto.SpecialtyIds is { Count: > 0 })
+        if (dto.Role == Roles.Doctor && dto.SpecialtyIds is { Count: > 0 })
         {
             validSpecialtyIds = await _context.Specialties
                 .Where(s => s.IsActive && dto.SpecialtyIds.Contains(s.Id))
@@ -99,7 +100,7 @@ public class AuthService : IAuthService
         }
 
         // Assign role
-        var role = dto.Role == "Doctor" ? "Doctor" : "Patient";
+        var role = dto.Role == Roles.Doctor ? Roles.Doctor : Roles.Patient;
         var roleResult = await _userManager.AddToRoleAsync(user, role);
         if (!roleResult.Succeeded)
         {
@@ -108,7 +109,7 @@ public class AuthService : IAuthService
         }
 
         // Create profile based on role
-        if (role == "Patient")
+        if (role == Roles.Patient)
         {
             _context.PatientProfiles.Add(new PatientProfile { UserId = user.Id });
         }
