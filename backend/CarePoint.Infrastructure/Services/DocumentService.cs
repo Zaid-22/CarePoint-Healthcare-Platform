@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
@@ -55,11 +56,11 @@ public class DocumentService : IDocumentService
             .AsNoTracking()
             .Where(d => d.PatientProfileId == patientId && d.DeletionRequestedAt == null);
 
-        if (role == "Patient")
+        if (role == Roles.Patient)
         {
             if (patient.UserId != userId) throw new ForbiddenException();
         }
-        else if (role == "Doctor")
+        else if (role == Roles.Doctor)
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
                 ?? throw new ForbiddenException();
@@ -71,7 +72,7 @@ public class DocumentService : IDocumentService
                  d.Appointment.Status == AppointmentStatus.InProgress ||
                  d.Appointment.Status == AppointmentStatus.Completed));
         }
-        else if (role != "Admin")
+        else if (role != Roles.Admin)
         {
             throw new ForbiddenException();
         }
@@ -194,9 +195,9 @@ public class DocumentService : IDocumentService
 
     private static bool CanDelete(MedicalDocument document, string userId, string role)
     {
-        if (role == "Admin") return true;
-        if (role == "Patient") return document.PatientProfile.UserId == userId;
-        if (role != "Doctor" || document.UploadedByUserId != userId || document.Appointment == null)
+        if (role == Roles.Admin) return true;
+        if (role == Roles.Patient) return document.PatientProfile.UserId == userId;
+        if (role != Roles.Doctor || document.UploadedByUserId != userId || document.Appointment == null)
             return false;
 
         var doctor = document.Appointment.DoctorProfile;
@@ -222,9 +223,9 @@ public class DocumentService : IDocumentService
 
     private static void EnsureCanRead(MedicalDocument document, string userId, string role)
     {
-        if (role == "Admin") return;
-        if (role == "Patient" && document.PatientProfile.UserId == userId) return;
-        if (role == "Doctor" && document.Appointment != null &&
+        if (role == Roles.Admin) return;
+        if (role == Roles.Patient && document.PatientProfile.UserId == userId) return;
+        if (role == Roles.Doctor && document.Appointment != null &&
             document.Appointment.DoctorProfile.UserId == userId &&
             ClinicalAccessRules.CanDoctorAccessClinicalData(
                 document.Appointment.DoctorProfile.Id,
@@ -237,6 +238,6 @@ public class DocumentService : IDocumentService
     private async Task<bool> IsAdminAsync(string userId)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        return user != null && await _userManager.IsInRoleAsync(user, "Admin");
+        return user != null && await _userManager.IsInRoleAsync(user, Roles.Admin);
     }
 }

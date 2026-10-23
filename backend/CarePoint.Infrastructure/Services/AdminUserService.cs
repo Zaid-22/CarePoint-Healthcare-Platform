@@ -1,6 +1,7 @@
 using CarePoint.Application.DTOs.Admin;
 using CarePoint.Application.DTOs.Common;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
 using CarePoint.Infrastructure.Identity;
@@ -12,7 +13,7 @@ namespace CarePoint.Infrastructure.Services;
 
 public sealed class AdminUserService : IAdminUserService
 {
-    private static readonly string[] KnownRoles = ["Admin", "Doctor", "Patient"];
+    private static readonly string[] KnownRoles = [Roles.Admin, Roles.Doctor, Roles.Patient];
 
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
@@ -94,10 +95,10 @@ public sealed class AdminUserService : IAdminUserService
             ?? throw new NotFoundException("User", id);
         var roles = await _userManager.GetRolesAsync(user);
 
-        if (disabled && roles.Contains("Admin", StringComparer.Ordinal))
+        if (disabled && roles.Contains(Roles.Admin, StringComparer.Ordinal))
         {
             var adminRoleId = await _context.Roles
-                .Where(identityRole => identityRole.Name == "Admin")
+                .Where(identityRole => identityRole.Name == Roles.Admin)
                 .Select(identityRole => identityRole.Id)
                 .SingleAsync();
             var anotherEnabledAdminExists = await (

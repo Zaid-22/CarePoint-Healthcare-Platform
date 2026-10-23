@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
@@ -232,7 +233,7 @@ public class PrescriptionService : IPrescriptionService
 
     private async Task EnsureCanReadAsync(Prescription prescription, string userId, string role)
     {
-        if (role == "Admin") return;
+        if (role == Roles.Admin) return;
 
         var appointment = await _context.Appointments.FindAsync(prescription.AppointmentId)
             ?? throw new NotFoundException("Appointment", prescription.AppointmentId);
@@ -241,12 +242,12 @@ public class PrescriptionService : IPrescriptionService
 
     private async Task EnsureCanReadAppointmentAsync(Appointment appointment, string userId, string role)
     {
-        if (role == "Admin") return;
+        if (role == Roles.Admin) return;
 
         var patient = await _context.PatientProfiles.FindAsync(appointment.PatientProfileId);
-        if (role == "Patient" && patient?.UserId == userId) return;
+        if (role == Roles.Patient && patient?.UserId == userId) return;
 
-        if (role == "Doctor")
+        if (role == Roles.Doctor)
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor != null && ClinicalAccessRules.CanDoctorAccessClinicalData(

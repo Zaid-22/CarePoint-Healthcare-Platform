@@ -44,6 +44,9 @@ public class GlobalExceptionMiddleware
             ConflictException => (HttpStatusCode.Conflict, exception.Message),
             DbUpdateConcurrencyException => (HttpStatusCode.Conflict,
                 "This record was changed by another request. Reload it and try again."),
+            DbUpdateException databaseException when IsDeadlock(databaseException) =>
+                (HttpStatusCode.ServiceUnavailable,
+                "The server is temporarily busy. Please retry your request."),
             DbUpdateException databaseException when IsConstraintConflict(databaseException) =>
                 (HttpStatusCode.Conflict,
                 "This request conflicts with data that already exists or changed."),
@@ -63,11 +66,18 @@ public class GlobalExceptionMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
+        if (statusCode == HttpStatusCode.ServiceUnavailable)
+        {
+            context.Response.Headers.Append("Retry-After", "1");
+        }
+
+        var traceId = context.TraceIdentifier;
         var response = new
         {
             success = false,
             message,
-            statusCode = (int)statusCode
+            statusCode = (int)statusCode,
+            traceId
         };
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(response, new JsonSerializerOptions
@@ -88,4 +98,18 @@ public class GlobalExceptionMiddleware
 
         return false;
     }
+
+    private static bool IsDeadlock(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is SqlException sqlException &&
+                sqlException.Errors.Cast<SqlError>()
+                    .Any(error => error.Number == 1205))
+                return true;
+        }
+
+        return false;
+    }
 }
+

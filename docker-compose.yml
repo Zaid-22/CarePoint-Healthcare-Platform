@@ -28,7 +28,7 @@ services:
         condition: service_healthy
     restart: on-failure
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=CarePointDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env};TrustServerCertificate=True;
       - JwtSettings__Secret=${JWT_SECRET:?Set JWT_SECRET in .env}
@@ -46,6 +46,7 @@ services:
       - EmailSettings__PasswordResetUrl=${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
       - ClinicTime__TimeZoneId=${CLINIC_TIME_ZONE:-Asia/Amman}
       - Database__InitializeOnStartup=${INITIALIZE_DATABASE_ON_STARTUP:-true}
+      - ForwardedHeaders__KnownNetworks__0=172.16.0.0/12
     volumes:
       - medical-documents:/app/App_Data/medical-documents
       - profile-images:/app/App_Data/profile-images

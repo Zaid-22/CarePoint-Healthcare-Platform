@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# Exit script cleanly when stopped (Ctrl+C)
-trap 'echo "\nStopping CarePoint processes..."; kill 0' EXIT INT TERM
+# Clean shutdown: kill background jobs on exit.
+cleanup() {
+    printf '\nStopping CarePoint processes...\n'
+    kill 0 2>/dev/null || true
+}
+trap cleanup EXIT
 
 if [ -f .env ]; then
     set -a
@@ -22,41 +27,45 @@ export EmailSettings__SmtpPassword="${SMTP_PASSWORD:-}"
 export EmailSettings__UseSsl="${SMTP_USE_SSL:-true}"
 export EmailSettings__PasswordResetUrl="${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}"
 
-echo "=========================================="
-echo " CarePoint - Fullstack Runner"
-echo "=========================================="
+printf '==========================================\n'
+printf ' CarePoint - Fullstack Runner\n'
+printf '==========================================\n'
 
 # 1. Start SQL Server via Docker if docker-compose exists
 if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
-    echo " Ensuring SQL Server database container is running..."
+    printf ' Ensuring SQL Server database container is running...\n'
     docker compose up -d sqlserver 2>/dev/null || docker-compose up -d sqlserver 2>/dev/null
 
-    echo " Waiting for SQL Server to become healthy..."
+    printf ' Waiting for SQL Server to become healthy...\n'
     readiness_attempt=0
     until [ "$(docker inspect --format='{{.State.Health.Status}}' carepoint-sqlserver 2>/dev/null)" = "healthy" ]; do
         readiness_attempt=$((readiness_attempt + 1))
         if [ "$readiness_attempt" -ge 60 ]; then
-            echo " SQL Server did not become healthy within two minutes."
+            printf ' SQL Server did not become healthy within two minutes.\n'
             exit 1
         fi
         sleep 2
     done
 fi
 
-echo ""
-echo "  Starting Backend API (.NET 10)..."
+# 2. Ensure frontend dependencies are installed
+if [ ! -d frontend/node_modules ]; then
+    printf ' Installing frontend dependencies...\n'
+    npm --prefix frontend install
+fi
+
+printf '\n  Starting Backend API (.NET 10)...\n'
 dotnet run --project backend/CarePoint.API/CarePoint.API.csproj --launch-profile http &
 BACKEND_PID=$!
 
-echo " Starting Frontend (Vite/React)..."
+printf ' Starting Frontend (Vite/React)...\n'
 npm --prefix frontend run dev &
 FRONTEND_PID=$!
 
-echo ""
-echo " Both services are running!"
-echo "   - Backend API:  http://localhost:5005"
-echo "   - Frontend App: http://localhost:5173"
-echo "Press Ctrl+C to stop all services."
-echo "=========================================="
+printf '\n Both services are running!\n'
+printf '   - Backend API:  http://localhost:5005\n'
+printf '   - Frontend App: http://localhost:5173\n'
+printf 'Press Ctrl+C to stop all services.\n'
+printf '==========================================\n'
 
 wait

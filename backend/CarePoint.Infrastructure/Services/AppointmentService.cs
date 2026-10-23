@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using CarePoint.Application.DTOs.Appointments;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Enums;
 using CarePoint.Domain.Exceptions;
@@ -154,7 +155,7 @@ public class AppointmentService : IAppointmentService
             NotificationType.AppointmentBooked, appointment.Id);
         await transaction.CommitAsync();
 
-        return await GetByIdAsync(appointment.Id, userId, "Patient");
+        return await GetByIdAsync(appointment.Id, userId, Roles.Patient);
     }
 
     public async Task<AppointmentDto> UpdateStatusAsync(Guid id, string userId, string role, UpdateAppointmentStatusDto dto)
@@ -170,13 +171,13 @@ public class AppointmentService : IAppointmentService
         if (!Enum.IsDefined(dto.Status))
             throw new BadRequestException("Invalid appointment status.");
 
-        if (role == "Doctor")
+        if (role == Roles.Doctor)
         {
             ValidateAccess(appointment, userId, role);
             if (!AppointmentStatusTransitions.CanDoctorTransition(appointment.Status, dto.Status))
                 throw new BadRequestException("This appointment status transition is not allowed.");
         }
-        else if (role == "Admin")
+        else if (role == Roles.Admin)
         {
             if (!AppointmentStatusTransitions.CanAdminTransition(appointment.Status, dto.Status))
                 throw new BadRequestException("This appointment status transition is not allowed.");
@@ -263,7 +264,7 @@ public class AppointmentService : IAppointmentService
             appointment.Id);
         await transaction.CommitAsync();
 
-        return await GetByIdAsync(id, userId, "Patient");
+        return await GetByIdAsync(id, userId, Roles.Patient);
     }
 
     public async Task<AppointmentDto> CancelAsync(Guid id, string userId, string role, CancelAppointmentDto dto)
@@ -301,14 +302,14 @@ public class AppointmentService : IAppointmentService
 
     private void ValidateAccess(Appointment appointment, string userId, string role)
     {
-        if (role == "Admin") return;
-        if (role == "Patient" && appointment.PatientProfile?.UserId != userId)
+        if (role == Roles.Admin) return;
+        if (role == Roles.Patient && appointment.PatientProfile?.UserId != userId)
             throw new ForbiddenException();
-        if (role == "Doctor" &&
+        if (role == Roles.Doctor &&
             (appointment.DoctorProfile?.UserId != userId ||
              appointment.DoctorProfile.ApprovalStatus != DoctorApprovalStatus.Approved))
             throw new ForbiddenException("Only approved doctors can access clinical appointments.");
-        if (role is not ("Admin" or "Patient" or "Doctor"))
+        if (role is not (Roles.Admin or Roles.Patient or Roles.Doctor))
             throw new ForbiddenException();
     }
 
@@ -398,7 +399,7 @@ public class AppointmentService : IAppointmentService
     private async Task<IQueryable<Appointment>> GetAccessibleQueryAsync(string userId, string role)
     {
         IQueryable<Appointment> query = _context.Appointments.AsNoTracking();
-        if (role == "Patient")
+        if (role == Roles.Patient)
         {
             var patientId = await _context.PatientProfiles.AsNoTracking()
                 .Where(profile => profile.UserId == userId)
@@ -409,7 +410,7 @@ public class AppointmentService : IAppointmentService
                 : query.Where(_ => false);
         }
 
-        if (role == "Doctor")
+        if (role == Roles.Doctor)
         {
             var doctorId = await _context.DoctorProfiles.AsNoTracking()
                 .Where(profile => profile.UserId == userId &&
@@ -421,7 +422,7 @@ public class AppointmentService : IAppointmentService
                 : query.Where(_ => false);
         }
 
-        if (role == "Admin") return query;
+        if (role == Roles.Admin) return query;
         throw new ForbiddenException();
     }
 

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using CarePoint.Application.DTOs.Patients;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
@@ -27,9 +28,9 @@ public class PatientService : IPatientService
         var patient = await _context.PatientProfiles.FindAsync(id)
             ?? throw new NotFoundException("Patient", id);
 
-        if (role != "Admin" && patient.UserId != userId)
+        if (role != Roles.Admin && patient.UserId != userId)
         {
-            var doctor = role == "Doctor"
+            var doctor = role == Roles.Doctor
                 ? await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId)
                 : null;
             if (doctor?.ApprovalStatus != DoctorApprovalStatus.Approved ||

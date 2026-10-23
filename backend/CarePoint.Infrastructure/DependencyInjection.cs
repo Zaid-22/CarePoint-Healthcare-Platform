@@ -24,8 +24,7 @@ public static class DependencyInjection
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("DefaultConnection"),
-                b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName))
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
+                b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
         services.AddHealthChecks()
             .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" });
         services.Configure<ClinicTimeSettings>(configuration.GetSection(ClinicTimeSettings.SectionName));

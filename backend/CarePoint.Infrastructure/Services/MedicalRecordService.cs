@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using CarePoint.Application.DTOs.Medical;
 using CarePoint.Application.Interfaces;
+using CarePoint.Domain;
 using CarePoint.Domain.Entities;
 using CarePoint.Domain.Exceptions;
 using CarePoint.Infrastructure.Data;
@@ -110,7 +111,7 @@ public class MedicalRecordService : IMedicalRecordService
         (skip, take) = Pagination.Normalize(skip, take);
         if (patient == null)
             return PagedResult<MedicalRecordDto>.Create(Array.Empty<MedicalRecordDto>(), 0, skip, take);
-        return await GetByPatientIdAsync(patient.Id, userId, "Patient", search, skip, take);
+        return await GetByPatientIdAsync(patient.Id, userId, Roles.Patient, search, skip, take);
     }
 
     public async Task<MedicalRecordDto> CreateAsync(string userId, CreateMedicalRecordDto dto)
@@ -187,16 +188,16 @@ public class MedicalRecordService : IMedicalRecordService
             throw new ConflictException(
                 "This medical record was changed by another user. Reload it before applying your correction.");
         }
-        return await GetByIdAsync(record.Id, userId, "Doctor");
+        return await GetByIdAsync(record.Id, userId, Roles.Doctor);
     }
 
     private static void EnsureCanRead(MedicalRecord record, string userId, string role)
     {
-        if (role == "Admin") return;
+        if (role == Roles.Admin) return;
 
-        if (role == "Patient" && record.Appointment.PatientProfile.UserId == userId) return;
+        if (role == Roles.Patient && record.Appointment.PatientProfile.UserId == userId) return;
 
-        if (role == "Doctor" &&
+        if (role == Roles.Doctor &&
             ClinicalAccessRules.CanDoctorAccessClinicalData(
                 record.Appointment.DoctorProfile.Id,
                 record.Appointment.DoctorProfileId,
@@ -212,9 +213,9 @@ public class MedicalRecordService : IMedicalRecordService
         var patient = await _context.PatientProfiles.FindAsync(patientId)
             ?? throw new NotFoundException("Patient", patientId);
 
-        if (role == "Admin" || (role == "Patient" && patient.UserId == userId)) return null;
+        if (role == Roles.Admin || (role == Roles.Patient && patient.UserId == userId)) return null;
 
-        if (role == "Doctor")
+        if (role == Roles.Doctor)
         {
             var doctor = await _context.DoctorProfiles.FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor?.ApprovalStatus == DoctorApprovalStatus.Approved &&
